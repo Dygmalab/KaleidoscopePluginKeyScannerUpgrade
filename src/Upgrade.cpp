@@ -77,8 +77,7 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
   if (strcmp_P(command + 8 + 11, PSTR("beginRight")) == 0) {
     if (!flashing) return EventHandlerResult::ERROR;
     key_scanner_flasher_.setSide(KeyScannerFlasher::RIGHT);
-    resetSide(KeyScannerFlasher::LEFT);
-    resetSide(KeyScannerFlasher::RIGHT);
+    resetSides();
     bool right_side = key_scanner_flasher_.sendBegin();
     if (right_side) {
       Focus.send(true);
@@ -92,8 +91,7 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
   if (strcmp_P(command + 8 + 11, PSTR("beginLeft")) == 0) {
     if (!flashing) return EventHandlerResult::ERROR;
     key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
-    resetSide(KeyScannerFlasher::RIGHT);
-    resetSide(KeyScannerFlasher::LEFT);
+    resetSides();
     bool right_side = key_scanner_flasher_.sendBegin();
     if (right_side) {
       Focus.send(true);
@@ -208,14 +206,11 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
 
   return EventHandlerResult::EVENT_CONSUMED;
 }
-void Upgrade::resetSide(KeyScannerFlasher::Side side) const {
+void Upgrade::resetSides() const {
   Runtime.device().side.prepareForFlash();
-  if (side == KeyScannerFlasher::RIGHT) {
-    Runtime.device().side.resetRight();
-    return;
-  }
-  Runtime.device().side.resetLeft();
+  Runtime.device().side.reset();
 }
+
 EventHandlerResult Upgrade::onSetup() {
   key_scanner_flasher_.setLeftBootAddress(Runtime.device().side.left_boot_address);
   key_scanner_flasher_.setRightBootAddress(Runtime.device().side.right_boot_address);

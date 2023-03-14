@@ -44,7 +44,7 @@ bool KeyScannerFlasher::getInfoFlasherKS(InfoAction &info_action) {
   return true;
 }
 
-bool KeyScannerFlasher::sendEraseAction(KeyScannerFlasher::EraseAction erase_action) {
+bool KeyScannerFlasher::sendEraseAction(EraseAction erase_action) {
   if (sendCommand(address, Action::ERASE)) return false;
   if (sendMessage(address, (uint8_t *)&erase_action, sizeof(erase_action))) return false;
   uint8_t done = false;
@@ -52,7 +52,7 @@ bool KeyScannerFlasher::sendEraseAction(KeyScannerFlasher::EraseAction erase_act
   return done;
 }
 
-uint32_t KeyScannerFlasher::sendWriteAction(KeyScannerFlasher::WriteAction write_action, uint8_t *data) {
+uint32_t KeyScannerFlasher::sendWriteAction(WriteAction write_action, uint8_t *data) {
   if (sendCommand(address, Action::WRITE)) {
     return 0;
   }
@@ -70,7 +70,7 @@ uint32_t KeyScannerFlasher::sendWriteAction(KeyScannerFlasher::WriteAction write
   return crc32;
 }
 
-bool KeyScannerFlasher::sendReadAction(KeyScannerFlasher::ReadAction read_action) {
+bool KeyScannerFlasher::sendReadAction(ReadAction read_action) {
   if (sendCommand(address, Action::READ)) return false;
   if (sendMessage(address, (uint8_t *)&read_action, sizeof(read_action))) return false;
   return true;

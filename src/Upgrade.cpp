@@ -104,7 +104,7 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
 
   if (strcmp_P(command + 8 + 11, PSTR("getInfo")) == 0) {
     if (!flashing) return EventHandlerResult::ERROR;
-    KeyScannerFlasher::InfoAction info{};
+    InfoAction info{};
     if (!key_scanner_flasher_.getInfoFlasherKS(info)) {
       Focus.send(false);
       return EventHandlerResult::ERROR;
@@ -121,17 +121,17 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
   if (strcmp_P(command + 8 + 11, PSTR("sendRead")) == 0) {
     if (!flashing) return EventHandlerResult::ERROR;
     Runtime.device().side.prepareForFlash();
-    KeyScannerFlasher::InfoAction info{};
+    InfoAction info{};
     if (!key_scanner_flasher_.getInfoFlasherKS(info)) {
       Focus.send(false);
       return EventHandlerResult::ERROR;
     }
     key_scanner_flasher_.setSideInfo(info);
 
-    KeyScannerFlasher::ReadAction read{info.validationSpaceStart, sizeof(KeyScannerFlasher::Seal)};
-    KeyScannerFlasher::Seal seal{};
+    ReadAction read{info.validationSpaceStart, sizeof(Seal)};
+    Seal seal{};
     key_scanner_flasher_.sendReadAction(read);
-    if (key_scanner_flasher_.readData((uint8_t *)&seal, sizeof(KeyScannerFlasher::Seal)) != sizeof(KeyScannerFlasher::Seal)) {
+    if (key_scanner_flasher_.readData((uint8_t *)&seal, sizeof(Seal)) != sizeof(Seal)) {
       Focus.send(false);
       return EventHandlerResult::ERROR;
     }
@@ -145,7 +145,7 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
   if (strcmp_P(command + 8 + 11, PSTR("sendWrite")) == 0) {
     if (!flashing) return EventHandlerResult::ERROR;
     struct {
-      KeyScannerFlasher::WriteAction write_action;
+      WriteAction write_action;
       uint8_t data[256];
       uint32_t crc32Transmission;
     } packet;
@@ -161,7 +161,7 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
     }
 
     if (packet.write_action.addr % info_action.eraseAlignment == 0) {
-      KeyScannerFlasher::EraseAction erase_action{packet.write_action.addr, info_action.eraseAlignment};
+      EraseAction erase_action{packet.write_action.addr, info_action.eraseAlignment};
       if (!key_scanner_flasher_.sendEraseAction(erase_action)) {
         ::Focus.send(false);
         return EventHandlerResult::ERROR;

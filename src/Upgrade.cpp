@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License along with
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
+#ifndef TEST_JIG
 #include "Upgrade.h"
 #include "CRC.h"
 #include "kaleidoscope/plugin/FocusSerial.h"
@@ -254,3 +254,4 @@ EventHandlerResult Upgrade::beforeReportingState() {
 }  // namespace kaleidoscope
 
 kaleidoscope::plugin::Upgrade Upgrade;
+#endif

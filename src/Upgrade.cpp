@@ -111,23 +111,6 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
     }
     key_scanner_flasher_.setSideInfo(info);
 
-    Focus.send(info.hardwareVersion);
-    Focus.send(info.flashStart);
-    Focus.send(info.programVersion);
-    Focus.send(info.bootloaderVersion);
-    Focus.send(true);
-  }
-
-  if (strcmp_P(command + 8 + 11, PSTR("sendRead")) == 0) {
-    if (!flashing) return EventHandlerResult::ERROR;
-    Runtime.device().side.prepareForFlash();
-    InfoAction info{};
-    if (!key_scanner_flasher_.getInfoFlasherKS(info)) {
-      Focus.send(false);
-      return EventHandlerResult::ERROR;
-    }
-    key_scanner_flasher_.setSideInfo(info);
-
     ReadAction read{info.validationSpaceStart, sizeof(Seal)};
     Seal seal{};
     key_scanner_flasher_.sendReadAction(read);

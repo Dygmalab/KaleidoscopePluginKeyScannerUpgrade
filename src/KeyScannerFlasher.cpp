@@ -93,8 +93,16 @@ bool KeyScannerFlasher::sendValidateProgram() {
 }
 
 bool KeyScannerFlasher::sendBegin() {
-  if (sendCommand(address, Action::BEGIN)) return false;
-  return true;
+  //Lest try 4 times ar give up
+  bool success = false;
+  for (int i = 0; i < 4; ++i) {
+    if (!sendCommand(address, Action::BEGIN)) {
+      success = true;
+      break;
+    }
+    delay(10);
+  }
+  return success;
 }
 
 bool KeyScannerFlasher::sendFinish() {

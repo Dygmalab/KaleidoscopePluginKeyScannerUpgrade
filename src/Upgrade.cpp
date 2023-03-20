@@ -45,12 +45,14 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
 
   if (strcmp_P(command + 8, PSTR("start")) == 0) {
     serial_pre_activation = true;
-    key_scanner_flasher_.setSide(KeyScannerFlasher::RIGHT);
+    key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
+    resetSides();
     bool right_side = key_scanner_flasher_.sendBegin();
     if (right_side) {
-      Kaleidoscope.hid().keyboard().pressKey(Key_Esc);
-      activated = true;
-      flashing  = true;
+      if (!key_scanner_flasher_.sendValidateProgram()) {
+        activated = true;
+        flashing  = true;
+      }
     }
     return EventHandlerResult::EVENT_CONSUMED;
   }
@@ -92,8 +94,8 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
     if (!flashing) return EventHandlerResult::ERROR;
     key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
     resetSides();
-    bool right_side = key_scanner_flasher_.sendBegin();
-    if (right_side) {
+    bool left_side = key_scanner_flasher_.sendBegin();
+    if (left_side) {
       Focus.send(true);
       return EventHandlerResult::EVENT_CONSUMED;
     }

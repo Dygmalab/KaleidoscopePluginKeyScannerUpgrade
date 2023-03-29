@@ -1,19 +1,3 @@
-/* -*- mode: c++ -*-
- * kaleidoscope::plugin::LEDCapsLockLight -- Highlight CapsLock when active
- * Copyright (C) 2020  Dygma Lab S.L.
- *
- * This program is free software: you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free Software
- * Foundation, version 3.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
- * details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program. If not, see <http://www.gnu.org/licenses/>.
- */
 #ifndef TEST_JIG
 #include "Upgrade.h"
 #include "CRC.h"
@@ -133,7 +117,7 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
       WriteAction write_action;
       uint8_t data[256];
       uint32_t crc32Transmission;
-    } packet;
+    } packet{};
     watchdog_update();
     Serial.readBytes((uint8_t *)&packet, sizeof(packet));
     watchdog_update();
@@ -191,9 +175,10 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
 
   return EventHandlerResult::EVENT_CONSUMED;
 }
+
 void Upgrade::resetSides() const {
   Runtime.device().side.prepareForFlash();
-  Runtime.device().side.reset();
+  Runtime.device().side.reset_sides();
 }
 
 EventHandlerResult Upgrade::onSetup() {

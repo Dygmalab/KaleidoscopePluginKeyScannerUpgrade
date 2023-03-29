@@ -1,5 +1,4 @@
 #include "KeyScannerFlasher.h"
-#include "Wire.h"
 
 // Errors:
 //  0 : Success

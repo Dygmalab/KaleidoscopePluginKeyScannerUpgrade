@@ -5,9 +5,30 @@
 #include "ApiBootloaderKeyscanner.h"
 
 #ifdef ARDUINO_ARCH_RP2040
+#include "stdio.h"
+#include "Wire.h"
 
 #define WIRE_ Wire1
+#elif defined(NRF52_ARCH)
+#ifdef __cplusplus
+extern "C" {
+#endif
+#include "nrf_delay.h"
+#ifdef __cplusplus
+}
+#endif
 
+#include "Wire_nrf52.h"
+#include "Usb_serial.h"
+
+extern Usb_serial usb_serial;  // It is declared in main.cpp
+
+static Wire_nrf52 wire_nrf52;
+#define WIRE_ wire_nrf52
+#define Serial usb_serial
+#define watchdog_update()
+#define sleep_us(us) nrf_delay_ms(us)
+#define delay(ms) nrf_delay_ms(ms)
 #endif
 
 
@@ -49,7 +70,7 @@ class KeyScannerFlasher {
   uint8_t right_boot_address_{};
   InfoAction infoLeft{};
   InfoAction infoRight{};
-  Side side_{0};
+  Side side_{RIGHT};
   uint32_t align(uint32_t val, uint32_t to);
   uint8_t readData(uint8_t address, uint8_t *message, uint32_t lenMessage, bool stopBit = false);
   uint8_t sendMessage(uint8_t address, uint8_t *message, uint32_t lenMessage, bool stopBit = false);

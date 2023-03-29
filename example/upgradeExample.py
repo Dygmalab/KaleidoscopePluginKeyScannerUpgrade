@@ -20,7 +20,6 @@ class InfoAction(NamedTuple):
 
 
 class SealHeader(NamedTuple):
-    deviceId: int
     version: int
     size: int
     crc: int
@@ -42,9 +41,10 @@ def checkError(line):
 
 
 def send(data):
-    print(data,end='')
+    print(data, end='')
     print()
     ser.write(data)
+
 
 def flash():
     # Lest get the info
@@ -65,10 +65,10 @@ def flash():
     # Here we can check the version and crc
     program = open("KeyScanner_WithHeader.bin", mode='rb').read()
     # The first 32 bits are the seal.
-    sealInBinary = struct.unpack(b"<IIIIIIII", program[0:32])
+    sealInBinary = struct.unpack(b"<IIIIIII", program[0:28])
     sealInBinary = Seal(
-        SealHeader(sealInBinary[0], sealInBinary[1], sealInBinary[2], sealInBinary[3]),
-        sealInBinary[4], sealInBinary[5], sealInBinary[6], sealInBinary[7])
+        SealHeader(sealInBinary[0], sealInBinary[1], sealInBinary[2]),
+        sealInBinary[3], sealInBinary[4], sealInBinary[5], sealInBinary[6])
     print(sealInBinary)
     if sealInBinary.programCrc == info.programCrc:
         print("No need to update!")
@@ -78,7 +78,7 @@ def flash():
         writeAction = struct.pack(b"<II", i + info.flashStart, 256)
         data = program[i:(i + 256)]
         crc32Transmission = struct.pack(b"<I", zlib.crc32(data))
-        send(str.encode("upgrade.keyscanner.sendWrite ")+writeAction+data+crc32Transmission)
+        send(str.encode("upgrade.keyscanner.sendWrite ") + writeAction + data + crc32Transmission)
         line = ser.readline()
         checkError(line)
         ser.readline()
@@ -111,13 +111,13 @@ def main():
 
     print("Can start upgrading")
 
-    send(b"upgrade.keyscanner.beginLeft\n")
+    send(b"upgrade.keyscanner.beginRight\n")
     line = ser.readline()
     checkError(line)
     ser.readline()
     flash()
 
-    send(b"upgrade.keyscanner.beginRight\n")
+    send(b"upgrade.keyscanner.beginLeft\n")
     line = ser.readline()
     checkError(line)
     ser.readline()

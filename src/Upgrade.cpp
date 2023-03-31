@@ -38,6 +38,7 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
         flashing  = true;
       }
     }
+    resetSides();
     return EventHandlerResult::EVENT_CONSUMED;
   }
 

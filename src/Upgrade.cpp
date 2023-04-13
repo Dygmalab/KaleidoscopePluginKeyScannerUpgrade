@@ -35,19 +35,16 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
     right.connected = key_scanner_flasher_.sendBegin();
     key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
     left.connected = key_scanner_flasher_.sendBegin();
-    if(right.connected){
+    if (right.connected) {
       key_scanner_flasher_.setSide(KeyScannerFlasher::RIGHT);
       right.validProgram = key_scanner_flasher_.sendValidateProgram();
     }
-    if(left.connected){
+    if (left.connected) {
       key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
       left.validProgram = key_scanner_flasher_.sendValidateProgram();
     }
     //If the left keyboard is has not a valid program then we can continue
     if (!left.validProgram) {
-      flashing = true;
-    }
-    if (!right.connected && !left.connected) {
       flashing = true;
     }
     resetSides();

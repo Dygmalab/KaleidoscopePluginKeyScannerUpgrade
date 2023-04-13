@@ -12,13 +12,14 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
                            "upgrade.start\n"
                            "upgrade.neuron\n"
                            "upgrade.end\n"
-                           "upgrade.keyscanner.beginRight\n"  //Choose the side Right
-                           "upgrade.keyscanner.beginLeft\n"   //Choose the side Left
-                           "upgrade.keyscanner.getInfo\n"     //Version, and CRC, and is connected and start address, program is OK
-                           "upgrade.keyscanner.sendWrite\n"   //Write //{Address size DATA crc} Check if we are going to support --? true false
-                           "upgrade.keyscanner.validate\n"    //Check validity
-                           "upgrade.keyscanner.finish\n"      //Finish bootloader
-                           "upgrade.keyscanner.sendStart")))  //Start main application and check validy //true false
+                           "upgrade.keyscanner.isConnected\n"   //Check if is connected (0 left 1 right)
+                           "upgrade.keyscanner.isBootloader\n"  //Check if in bootloader mode (0 left 1 right)
+                           "upgrade.keyscanner.begin\n"         //Choose the side (0 left 1 right)
+                           "upgrade.keyscanner.getInfo\n"       //Version, and CRC, and is connected and start address, program is OK
+                           "upgrade.keyscanner.sendWrite\n"     //Write //{Address size DATA crc} Check if we are going to support --? true false
+                           "upgrade.keyscanner.validate\n"      //Check validity
+                           "upgrade.keyscanner.finish\n"        //Finish bootloader
+                           "upgrade.keyscanner.sendStart")))    //Start main application and check validy //true false
 
     return EventHandlerResult::OK;
   //TODO set numbers ot PSTR
@@ -29,14 +30,25 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
 
   if (strcmp_P(command + 8, PSTR("start")) == 0) {
     serial_pre_activation = true;
-    key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
     resetSides();
-    bool right_side = key_scanner_flasher_.sendBegin();
-    if (right_side) {
-      if (!key_scanner_flasher_.sendValidateProgram()) {
-        activated = true;
-        flashing  = true;
-      }
+    key_scanner_flasher_.setSide(KeyScannerFlasher::RIGHT);
+    right.connected = key_scanner_flasher_.sendBegin();
+    key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
+    left.connected = key_scanner_flasher_.sendBegin();
+    if(right.connected){
+      key_scanner_flasher_.setSide(KeyScannerFlasher::RIGHT);
+      right.validProgram = key_scanner_flasher_.sendValidateProgram();
+    }
+    if(left.connected){
+      key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
+      left.validProgram = key_scanner_flasher_.sendValidateProgram();
+    }
+    //If the left keyboard is has not a valid program then we can continue
+    if (!left.validProgram) {
+      flashing = true;
+    }
+    if (!right.connected && !left.connected) {
+      flashing = true;
     }
     resetSides();
     return EventHandlerResult::EVENT_CONSUMED;
@@ -61,26 +73,51 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
   if (strncmp_P(command + 8, PSTR("keyscanner."), 11) != 0)
     return EventHandlerResult::OK;
 
-  if (strcmp_P(command + 8 + 11, PSTR("beginRight")) == 0) {
+  if (strcmp_P(command + 8 + 11, PSTR("isConnected")) == 0) {
+    if (::Focus.isEOL()) return EventHandlerResult::EVENT_CONSUMED;
+    uint8_t side;
+    ::Focus.read(side);
+    if (side != KeyScannerFlasher::Side::RIGHT && side != KeyScannerFlasher::Side::LEFT) {
+      return EventHandlerResult::EVENT_CONSUMED;
+    }
+    if (side == KeyScannerFlasher::Side::RIGHT) {
+      Focus.send(right.connected);
+    }
+    if (side == KeyScannerFlasher::Side::LEFT) {
+      Focus.send(left.connected);
+    }
+    return EventHandlerResult::EVENT_CONSUMED;
+  }
+
+  if (strcmp_P(command + 8 + 11, PSTR("isBootloader")) == 0) {
+    if (::Focus.isEOL()) return EventHandlerResult::EVENT_CONSUMED;
+    uint8_t side;
+    ::Focus.read(side);
+    if (side != KeyScannerFlasher::Side::RIGHT && side != KeyScannerFlasher::Side::LEFT) {
+      return EventHandlerResult::EVENT_CONSUMED;
+    }
+    if (side == KeyScannerFlasher::Side::RIGHT) {
+      Focus.send(!right.validProgram);
+    }
+    if (side == KeyScannerFlasher::Side::LEFT) {
+      Focus.send(!left.validProgram);
+    }
+    return EventHandlerResult::EVENT_CONSUMED;
+  }
+
+  if (strcmp_P(command + 8 + 11, PSTR("begin")) == 0) {
     if (!flashing) return EventHandlerResult::ERROR;
-    key_scanner_flasher_.setSide(KeyScannerFlasher::RIGHT);
-    resetSides();
-    bool right_side = key_scanner_flasher_.sendBegin();
-    if (right_side) {
-      Focus.send(true);
+    if (::Focus.isEOL()) return EventHandlerResult::EVENT_CONSUMED;
+    uint8_t side;
+    ::Focus.read(side);
+    if (side != KeyScannerFlasher::Side::RIGHT && side != KeyScannerFlasher::Side::LEFT) {
       return EventHandlerResult::EVENT_CONSUMED;
     }
 
-    Focus.send(false);
-    return EventHandlerResult::ERROR;
-  }
-
-  if (strcmp_P(command + 8 + 11, PSTR("beginLeft")) == 0) {
-    if (!flashing) return EventHandlerResult::ERROR;
-    key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
+    key_scanner_flasher_.setSide((KeyScannerFlasher::Side)side);
     resetSides();
-    bool left_side = key_scanner_flasher_.sendBegin();
-    if (left_side) {
+    bool active_side = key_scanner_flasher_.sendBegin();
+    if (active_side) {
       Focus.send(true);
       return EventHandlerResult::EVENT_CONSUMED;
     }

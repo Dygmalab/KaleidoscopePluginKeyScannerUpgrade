@@ -59,7 +59,6 @@ uint32_t KeyScannerFlasher::sendWriteAction(WriteAction write_action, uint8_t *d
     return 0;
   }
 
-  sleep_us(500);
   if (sendMessage(address, data, write_action.size)) {
     return 0;
   }

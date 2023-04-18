@@ -1,6 +1,10 @@
 #ifndef TEST_JIG
 #include "Upgrade.h"
+#ifdef ARDUINO_ARCH_RP2040
 #include "CRC.h"
+#elif defined(NRF52_ARCH)
+#include "CRC_wrapper.h"
+#endif
 #include "kaleidoscope/plugin/FocusSerial.h"
 
 namespace kaleidoscope {

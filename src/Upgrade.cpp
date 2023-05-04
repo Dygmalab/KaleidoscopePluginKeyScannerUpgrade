@@ -197,6 +197,7 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
       return EventHandlerResult::ERROR;
     }
     Focus.send(true);
+    Runtime.device().side.reset_sides();
   }
 
   if (strcmp_P(command + 8 + 11, PSTR("sendStart")) == 0) {

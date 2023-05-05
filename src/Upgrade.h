@@ -21,7 +21,7 @@
 #include "KeyScannerFlasher.h"
 
 #ifdef NRF52_ARCH
-#define strcmp_P strcmp
+#define strcmp_P  strcmp
 #define strncmp_P strncmp
 #define PSTR
 #endif
@@ -40,6 +40,10 @@ class Upgrade : public Plugin {
 
  private:
   KeyScannerFlasher key_scanner_flasher_{};
+  struct {
+    bool connected=false;
+    bool validProgram=false;
+  } right, left;
   bool activated = false;
   bool flashing  = false;
   uint16_t press_time{1};

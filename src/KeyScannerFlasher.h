@@ -27,7 +27,6 @@ static Wire_nrf52 wire_nrf52;
 #define WIRE_ wire_nrf52
 #define Serial usb_serial
 #define watchdog_update()
-#define sleep_us(us) nrf_delay_ms(us)
 #define delay(ms) nrf_delay_ms(ms)
 #endif
 

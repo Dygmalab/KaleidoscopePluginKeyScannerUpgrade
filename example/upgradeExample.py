@@ -111,13 +111,13 @@ def main():
 
     print("Can start upgrading")
 
-    send(b"upgrade.keyscanner.beginRight\n")
+    send(b"upgrade.keyscanner.begin 0\n")
     line = ser.readline()
     checkError(line)
     ser.readline()
     flash()
 
-    send(b"upgrade.keyscanner.beginLeft\n")
+    send(b"upgrade.keyscanner.begin 1\n")
     line = ser.readline()
     checkError(line)
     ser.readline()

@@ -19,6 +19,7 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
                            "upgrade.keyscanner.isConnected\n"   //Check if is connected (0 left 1 right)
                            "upgrade.keyscanner.isBootloader\n"  //Check if in bootloader mode (0 left 1 right)
                            "upgrade.keyscanner.begin\n"         //Choose the side (0 left 1 right)
+                           "upgrade.keyscanner.isReady\n"       //Returns if the upgrade can begin successfully
                            "upgrade.keyscanner.getInfo\n"       //Version, and CRC, and is connected and start address, program is OK
                            "upgrade.keyscanner.sendWrite\n"     //Write //{Address size DATA crc} Check if we are going to support --? true false
                            "upgrade.keyscanner.validate\n"      //Check validity
@@ -33,6 +34,7 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
 
 
   if (strcmp_P(command + 8, PSTR("start")) == 0) {
+    InfoAction infoLeft{};
     serial_pre_activation = true;
     resetSides();
     key_scanner_flasher_.setSide(KeyScannerFlasher::RIGHT);
@@ -43,14 +45,21 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
       key_scanner_flasher_.setSide(KeyScannerFlasher::RIGHT);
       right.validProgram = key_scanner_flasher_.sendValidateProgram();
     }
+
     if (left.connected) {
       key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
       left.validProgram = key_scanner_flasher_.sendValidateProgram();
+      key_scanner_flasher_.getInfoFlasherKS(infoLeft);
     }
     //If the left keyboard is has not a valid program then we can continue
     if (!left.validProgram) {
       flashing = true;
     }
+
+    if(left.validProgram && infoLeft.programVersion == 0x00) {
+      flashing = true;
+    }
+
     resetSides();
     return EventHandlerResult::EVENT_CONSUMED;
   }

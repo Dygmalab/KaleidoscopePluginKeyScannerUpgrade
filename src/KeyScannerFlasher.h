@@ -19,13 +19,9 @@ extern "C" {
 #endif
 
 #include "Wire_nrf52.h"
-#include "Usb_serial.h"
-
-extern Usb_serial usb_serial;  // It is declared in main.cpp
 
 static Wire_nrf52 wire_nrf52;
 #define WIRE_ wire_nrf52
-#define Serial usb_serial
 #define watchdog_update()
 #define delay(ms) nrf_delay_ms(ms)
 #endif

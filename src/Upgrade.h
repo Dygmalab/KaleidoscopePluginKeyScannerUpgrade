@@ -20,11 +20,6 @@
 #include <Kaleidoscope.h>
 #include "KeyScannerFlasher.h"
 
-#ifdef NRF52_ARCH
-#define strcmp_P  strcmp
-#define strncmp_P strncmp
-#define PSTR
-#endif
 
 namespace kaleidoscope {
 namespace plugin {

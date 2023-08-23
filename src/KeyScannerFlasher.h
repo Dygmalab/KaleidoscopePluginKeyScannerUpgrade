@@ -10,20 +10,12 @@
 
 #define WIRE_ Wire1
 #elif defined(NRF52_ARCH)
-#ifdef __cplusplus
-extern "C" {
-#endif
-#include "nrf_delay.h"
-#ifdef __cplusplus
-}
-#endif
-
+#include "Arduino.h"
 #include "Wire_nrf52.h"
 
 static Wire_nrf52 wire_nrf52;
 #define WIRE_ wire_nrf52
 #define watchdog_update()
-#define delay(ms) nrf_delay_ms(ms)
 #endif
 
 

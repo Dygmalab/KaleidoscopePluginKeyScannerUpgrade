@@ -37,10 +37,14 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
     InfoAction infoLeft{};
     serial_pre_activation = true;
     resetSides();
-    key_scanner_flasher_.setSide(KeyScannerFlasher::RIGHT);
-    right.connected = key_scanner_flasher_.sendBegin();
-    key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
-    left.connected = key_scanner_flasher_.sendBegin();
+    uint8_t i=0;
+    while (!(right.connected && left.connected) && i < 3) {
+      key_scanner_flasher_.setSide(KeyScannerFlasher::RIGHT);
+      right.connected = key_scanner_flasher_.sendBegin();
+      key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
+      left.connected = key_scanner_flasher_.sendBegin();
+      i++;
+    }
     if (right.connected) {
       key_scanner_flasher_.setSide(KeyScannerFlasher::RIGHT);
       right.validProgram = key_scanner_flasher_.sendValidateProgram();
@@ -126,7 +130,13 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
 
     key_scanner_flasher_.setSide((KeyScannerFlasher::Side)side);
     resetSides();
-    bool active_side = key_scanner_flasher_.sendBegin();
+    bool active_side = false;
+    uint8_t i=0;
+    while (!active_side && i < 3) {
+      active_side = key_scanner_flasher_.sendBegin();
+      i++;
+    }
+
     if (active_side) {
       Focus.send(true);
       return EventHandlerResult::EVENT_CONSUMED;

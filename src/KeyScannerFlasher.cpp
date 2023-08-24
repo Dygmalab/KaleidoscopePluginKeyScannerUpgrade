@@ -91,16 +91,10 @@ bool KeyScannerFlasher::sendValidateProgram() {
 }
 
 bool KeyScannerFlasher::sendBegin() {
-  //Lest try 4 times ar give up
-  bool success = false;
-  for (int i = 0; i < 4; ++i) {
-    if (!sendCommand(address, Action::BEGIN)) {
-      success = true;
-      break;
-    }
-    delay(10);
-  }
-  return success;
+  WIRE_.setTimeout(20);
+  bool b = !sendCommand(address, Action::BEGIN);
+  WIRE_.setTimeout(300);
+  return b;
 }
 
 bool KeyScannerFlasher::sendFinish() {

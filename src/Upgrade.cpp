@@ -38,6 +38,10 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
     serial_pre_activation = true;
     resetSides();
     uint8_t i=0;
+    right.connected = false;
+    left.connected = false;
+    left.validProgram = false;
+    right.validProgram = false;
     while (!(right.connected && left.connected) && i < 3) {
       key_scanner_flasher_.setSide(KeyScannerFlasher::RIGHT);
       right.connected = key_scanner_flasher_.sendBegin();

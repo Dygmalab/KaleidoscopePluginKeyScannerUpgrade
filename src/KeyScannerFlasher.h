@@ -3,6 +3,7 @@
 
 #include "stdio.h"
 #include "ApiBootloaderKeyscanner.h"
+#include "Arduino.h"
 #include "Wire.h"
 
 #define WIRE_ Wire1

@@ -3,20 +3,9 @@
 
 #include "stdio.h"
 #include "ApiBootloaderKeyscanner.h"
-
-#ifdef ARDUINO_ARCH_RP2040
-#include "stdio.h"
 #include "Wire.h"
 
 #define WIRE_ Wire1
-#elif defined(NRF52_ARCH)
-#include "Arduino.h"
-#include "Wire_nrf52.h"
-
-static Wire_nrf52 wire_nrf52;
-#define WIRE_ wire_nrf52
-#define watchdog_update()
-#endif
 
 
 class KeyScannerFlasher {

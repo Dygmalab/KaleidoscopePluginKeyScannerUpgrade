@@ -6,6 +6,7 @@
 #include "Wire.h"
 
 #define WIRE_ Wire1
+#define watchdog_update()
 
 
 class KeyScannerFlasher {

@@ -9,7 +9,7 @@
 
 namespace kaleidoscope {
 namespace plugin {
-
+static bool esc_release = false;
 EventHandlerResult Upgrade::onFocusEvent(const char *command) {
   if (::Focus.handleHelp(command,
                          PSTR(
@@ -173,7 +173,7 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
     Focus.send(true);
   }
 
-  if (strcmp_P(command + 8 + 11, PSTR("sendWrite")) == 0) {
+  if (strcmp_P(command + 8 + 11, PSTR("sendWrite")) == 0)  {
     if (!flashing) return EventHandlerResult::ERROR;
     struct {
       WriteAction write_action;
@@ -258,12 +258,14 @@ EventHandlerResult Upgrade::onKeyswitchEvent(Key &mapped_Key, KeyAddr key_addr, 
   }
 
   if (activated && key_addr.col() == 0 && key_addr.row() == 0 && keyToggledOff(key_state)) {
+    //esc_release = true;
     activated    = false;
     pressed_time = 0;
-    return EventHandlerResult::EVENT_CONSUMED;
+    return EventHandlerResult::OK;
   }
 
   if (key_addr.col() == 0 && key_addr.row() == 0 && keyToggledOn(key_state)) {
+    esc_release = false;
     activated    = true;
     pressed_time = Runtime.millisAtCycleStart();
     return EventHandlerResult::EVENT_CONSUMED;

@@ -124,12 +124,20 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
   }
 
   if (strcmp_P(command + 8 + 11, PSTR("begin")) == 0) {
+
     if (!flashing) return EventHandlerResult::ERROR;
+
     if (::Focus.isEOL()) return EventHandlerResult::EVENT_CONSUMED;
+
     uint8_t side;
     ::Focus.read(side);
     if (side != KeyScannerFlasher::Side::RIGHT && side != KeyScannerFlasher::Side::LEFT) {
       return EventHandlerResult::EVENT_CONSUMED;
+    }
+
+    // Wait until the release all key are sent to the computer.
+    if (!Runtime.hasTimeExpired(ti_send_release_keys, 20)) {
+        return EventHandlerResult::EVENT_CONSUMED;
     }
 
     key_scanner_flasher_.setSide((KeyScannerFlasher::Side)side);
@@ -225,10 +233,12 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
 
   if (strcmp_P(command + 8 + 11, PSTR("sendStart")) == 0) {
     auto info_action = key_scanner_flasher_.getInfoAction();
+
     if (!key_scanner_flasher_.sendValidateProgram()) {
       Focus.send(false);
       return EventHandlerResult::ERROR;
     }
+
     if (!key_scanner_flasher_.sendJump(info_action.programSpaceStart)) {
       Focus.send(false);
       return EventHandlerResult::ERROR;
@@ -261,6 +271,12 @@ EventHandlerResult Upgrade::onKeyswitchEvent(Key &mapped_Key, KeyAddr key_addr, 
     //esc_release = true;
     activated    = false;
     pressed_time = 0;
+    handleKeyswitchEvent(mapped_Key, key_addr, IS_PRESSED | INJECTED);
+
+    kaleidoscope::Runtime.hid().keyboard().releaseAllKeys();
+    kaleidoscope::Runtime.hid().keyboard().sendReport();
+    ti_send_release_keys = Runtime.millisAtCycleStart();
+
     return EventHandlerResult::OK;
   }
 
@@ -273,6 +289,7 @@ EventHandlerResult Upgrade::onKeyswitchEvent(Key &mapped_Key, KeyAddr key_addr, 
 
   return EventHandlerResult::OK;
 }
+
 EventHandlerResult Upgrade::beforeReportingState() {
   if (flashing) return EventHandlerResult::OK;
   if (!serial_pre_activation)

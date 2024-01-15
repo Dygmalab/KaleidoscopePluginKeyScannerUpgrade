@@ -136,9 +136,9 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
     }
 
     // Wait until the release all key are sent to the computer.
-    if (!Runtime.hasTimeExpired(ti_send_release_keys, 20)) {
-        return EventHandlerResult::EVENT_CONSUMED;
-    }
+//    if (!Runtime.hasTimeExpired(ti_send_release_keys, 20)) {
+//        return EventHandlerResult::EVENT_CONSUMED;
+//    }
 
     key_scanner_flasher_.setSide((KeyScannerFlasher::Side)side);
     resetSides();
@@ -259,6 +259,7 @@ EventHandlerResult Upgrade::onSetup() {
   key_scanner_flasher_.setRightBootAddress(Runtime.device().side.right_boot_address);
   return EventHandlerResult::OK;
 }
+
 EventHandlerResult Upgrade::onKeyswitchEvent(Key &mapped_Key, KeyAddr key_addr, uint8_t key_state) {
   if (!serial_pre_activation)
     return EventHandlerResult::OK;
@@ -273,9 +274,9 @@ EventHandlerResult Upgrade::onKeyswitchEvent(Key &mapped_Key, KeyAddr key_addr, 
     pressed_time = 0;
     handleKeyswitchEvent(mapped_Key, key_addr, IS_PRESSED | INJECTED);
 
-    kaleidoscope::Runtime.hid().keyboard().releaseAllKeys();
-    kaleidoscope::Runtime.hid().keyboard().sendReport();
-    ti_send_release_keys = Runtime.millisAtCycleStart();
+//    kaleidoscope::Runtime.hid().keyboard().releaseAllKeys();
+//    kaleidoscope::Runtime.hid().keyboard().sendReport();
+//    ti_send_release_keys = Runtime.millisAtCycleStart();
 
     return EventHandlerResult::OK;
   }

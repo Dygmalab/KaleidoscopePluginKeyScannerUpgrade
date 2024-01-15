@@ -36,7 +36,10 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
   if (strcmp_P(command + 8, PSTR("start")) == 0) {
     InfoAction infoLeft{};
     serial_pre_activation = true;
-    resetSides();
+
+    Runtime.device().side.prepareForFlash();  // Init N2 I2C.
+    Runtime.device().side.reset_sides();
+
     uint8_t i=0;
     right.connected = false;
     left.connected = false;
@@ -49,6 +52,7 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
       left.connected = key_scanner_flasher_.sendBegin();
       i++;
     }
+
     if (right.connected) {
       key_scanner_flasher_.setSide(KeyScannerFlasher::RIGHT);
       right.validProgram = key_scanner_flasher_.sendValidateProgram();
@@ -59,7 +63,8 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
       left.validProgram = key_scanner_flasher_.sendValidateProgram();
       key_scanner_flasher_.getInfoFlasherKS(infoLeft);
     }
-    //If the left keyboard is has not a valid program then we can continue
+
+    //If the left keyboard has not a valid program then we can continue
     if (!left.validProgram) {
       flashing = true;
     }
@@ -68,7 +73,11 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
       flashing = true;
     }
 
-    resetSides();
+    Runtime.device().side.reset_sides();
+    delay(50);
+    Runtime.device().side.reset_sides();
+    delay(50);
+
     return EventHandlerResult::EVENT_CONSUMED;
   }
 
@@ -129,19 +138,19 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
 
     if (::Focus.isEOL()) return EventHandlerResult::EVENT_CONSUMED;
 
-    uint8_t side;
-    ::Focus.read(side);
-    if (side != KeyScannerFlasher::Side::RIGHT && side != KeyScannerFlasher::Side::LEFT) {
+    // Wait until the release all key are sent to the computer.
+    //    if (!Runtime.hasTimeExpired(ti_send_release_keys, 20)) {
+    //        return EventHandlerResult::EVENT_CONSUMED;
+    //    }
+
+    ::Focus.read(flashing_side);
+    if (flashing_side != KeyScannerFlasher::Side::RIGHT && flashing_side != KeyScannerFlasher::Side::LEFT) {
       return EventHandlerResult::EVENT_CONSUMED;
     }
 
-    // Wait until the release all key are sent to the computer.
-//    if (!Runtime.hasTimeExpired(ti_send_release_keys, 20)) {
-//        return EventHandlerResult::EVENT_CONSUMED;
-//    }
+    key_scanner_flasher_.setSide((KeyScannerFlasher::Side)flashing_side);
+    Runtime.device().side.reset_sides();
 
-    key_scanner_flasher_.setSide((KeyScannerFlasher::Side)side);
-    resetSides();
     bool active_side = false;
     uint8_t i=0;
     while (!active_side && i < 3) {
@@ -227,6 +236,7 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
       Focus.send(false);
       return EventHandlerResult::ERROR;
     }
+
     Focus.send(true);
     Runtime.device().side.reset_sides();
   }
@@ -244,14 +254,19 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
       return EventHandlerResult::ERROR;
     }
     Focus.send(true);
+
+    Runtime.device().side.reset_sides();
+    delay(50);
+    Runtime.device().side.reset_sides();
+    delay(50);
+    if (flashing_side == KeyScannerFlasher::Side::LEFT)
+    {
+        // Reset the N2 at the end of the falshing process.
+        NVIC_SystemReset();  // N2 soft reset.
+    }
   }
 
   return EventHandlerResult::EVENT_CONSUMED;
-}
-
-void Upgrade::resetSides() const {
-  Runtime.device().side.prepareForFlash();
-  Runtime.device().side.reset_sides();
 }
 
 EventHandlerResult Upgrade::onSetup() {

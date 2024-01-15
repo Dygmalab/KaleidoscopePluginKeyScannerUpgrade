@@ -41,11 +41,11 @@ class Upgrade : public Plugin {
   } right, left;
   bool activated = false;
   bool flashing  = false;
+  uint8_t flashing_side = KeyScannerFlasher::Side::RIGHT;
   uint16_t press_time{1};
   uint16_t pressed_time{0};
   uint32_t ti_send_release_keys = 0;
   bool serial_pre_activation = false;
-  void resetSides() const;
 };
 
 }  // namespace plugin

@@ -36,7 +36,12 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command) {
   if (strcmp_P(command + 8, PSTR("start")) == 0) {
     InfoAction infoLeft{};
     serial_pre_activation = true;
+
+    Runtime.hid().keyboard().releaseAllKeys();
+    Runtime.hid().keyboard().sendReport();
+
     resetSides();
+
     uint8_t i=0;
     right.connected = false;
     left.connected = false;
@@ -249,6 +254,7 @@ EventHandlerResult Upgrade::onSetup() {
   key_scanner_flasher_.setRightBootAddress(Runtime.device().side.right_boot_address);
   return EventHandlerResult::OK;
 }
+
 EventHandlerResult Upgrade::onKeyswitchEvent(Key &mapped_Key, KeyAddr key_addr, uint8_t key_state) {
   if (!serial_pre_activation)
     return EventHandlerResult::OK;
@@ -257,13 +263,7 @@ EventHandlerResult Upgrade::onKeyswitchEvent(Key &mapped_Key, KeyAddr key_addr, 
     return EventHandlerResult::OK;
   }
 
-  if (activated && key_addr.col() == 0 && key_addr.row() == 0 && keyToggledOff(key_state)) {
-    activated    = false;
-    pressed_time = 0;
-    return EventHandlerResult::EVENT_CONSUMED;
-  }
-
-  if (key_addr.col() == 0 && key_addr.row() == 0 && keyToggledOn(key_state)) {
+  if (key_addr.col() == 0 && key_addr.row() == 0 && keyToggledOff(key_state)) {
     activated    = true;
     pressed_time = Runtime.millisAtCycleStart();
     return EventHandlerResult::EVENT_CONSUMED;
@@ -277,8 +277,10 @@ EventHandlerResult Upgrade::beforeReportingState() {
     return EventHandlerResult::OK;
   if (!activated)
     return EventHandlerResult::OK;
+  //TODO: presstime seems strange (erease it, makes no harm).
   if (Runtime.hasTimeExpired(pressed_time, press_time)) {
     flashing = true;
+    activated = false;
     return EventHandlerResult::OK;
   }
   return EventHandlerResult::OK;

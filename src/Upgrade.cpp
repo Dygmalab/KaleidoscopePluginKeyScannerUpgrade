@@ -9,10 +9,13 @@
 #include "kaleidoscope/plugin/FocusSerial.h"
 
 
-namespace kaleidoscope {
-namespace plugin {
+namespace kaleidoscope
+{
+namespace plugin
+{
 
-EventHandlerResult Upgrade::onFocusEvent(const char *command) {
+EventHandlerResult Upgrade::onFocusEvent(const char *command)
+{
   if (::Focus.handleHelp(command,
                          PSTR(
                            "upgrade.start\n"

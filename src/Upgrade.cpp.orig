@@ -303,6 +303,13 @@ EventHandlerResult Upgrade::beforeReportingState()
   }
 
   if (!activated)
+<<<<<<< Updated upstream
+    return EventHandlerResult::OK;
+  //TODO: presstime seems strange (erease it, makes no harm).
+  if (Runtime.hasTimeExpired(pressed_time, press_time)) {
+    flashing = true;
+    activated = false;
+=======
   {
       return EventHandlerResult::OK;
   }
@@ -312,6 +319,7 @@ EventHandlerResult Upgrade::beforeReportingState()
     flashing = true;
     activated = false;
 
+>>>>>>> Stashed changes
     return EventHandlerResult::OK;
   }
 

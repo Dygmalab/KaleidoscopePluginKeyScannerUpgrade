@@ -91,7 +91,7 @@ bool KeyScannerFlasher::sendValidateProgram() {
 }
 
 bool KeyScannerFlasher::sendBegin() {
-  WIRE_.setTimeout(20);
+  WIRE_.setTimeout(50);
   bool b = !sendCommand(address, Action::BEGIN);
   WIRE_.setTimeout(300);
   return b;

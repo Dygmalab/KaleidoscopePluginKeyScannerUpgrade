@@ -14,6 +14,20 @@ namespace kaleidoscope
 namespace plugin
 {
 
+    /*
+     *Bzecor steps in order.
+     * upgrade.start
+     * upgrade.keyscanner.isConnected (0:Right / 1:Left)
+     * upgrade.keyscanner.isBootloader (0:Right / 1:Left)
+     * upgrade.keyscanner.begin (0:Right / 1:Left) // after this one, FW remembers the chosen side
+     * upgrade.keyscanner.getInfo
+     * upgrade.keyscanner.sendWrite
+     * upgrade.keyscanner.validate
+     * upgrade.keyscanner.finish
+     * upgrade.neuron
+     * upgrade.end
+     */
+
 EventHandlerResult Upgrade::onFocusEvent(const char *command)
 {
   if (::Focus.handleHelp(command,

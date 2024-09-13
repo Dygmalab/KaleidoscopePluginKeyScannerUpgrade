@@ -45,6 +45,7 @@ class Upgrade : public Plugin {
   uint16_t pressed_time{0};
   bool serial_pre_activation = false;
   void resetSides() const;
+  bool escApprove() const;
 };
 
 }  // namespace plugin

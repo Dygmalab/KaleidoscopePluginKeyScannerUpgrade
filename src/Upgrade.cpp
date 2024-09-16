@@ -8,12 +8,16 @@
 
 #include "kaleidoscope/plugin/FocusSerial.h"
 
+#include "Communications.h"
+#include "Watchdog_timer.h"
+
+#define ESC_APPROVE_TIMEOUT_MS      1000
+extern Watchdog_timer watchdog_timer;
 
 namespace kaleidoscope
 {
 namespace plugin
 {
-
     /*
      *Bzecor steps in order.
      * upgrade.start
@@ -27,6 +31,7 @@ namespace plugin
      * upgrade.neuron
      * upgrade.end
      */
+
 
 EventHandlerResult Upgrade::onFocusEvent(const char *command)
 {
@@ -61,6 +66,7 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command)
     resetSides();
 
     uint8_t i=0;
+    flashing = false;
     right.connected = false;
     left.connected = false;
     left.validProgram = false;
@@ -82,10 +88,16 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command)
       key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
       left.validProgram = key_scanner_flasher_.sendValidateProgram();
       key_scanner_flasher_.getInfoFlasherKS(infoLeft);
+
+      //Check if the ESC key can be used. If not, left side program is assumed as invalid.
+      if( escApprove() == false )
+      {
+        left.validProgram = false;
+      }
     }
 
     //If the left keyboard is has not a valid program then we can continue
-    if (!left.validProgram) {
+    if ( !left.validProgram ) {
       flashing = true;
     }
 
@@ -281,6 +293,25 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command)
 void Upgrade::resetSides() const {
   Runtime.device().side.prepareForFlash();
   Runtime.device().side.reset_sides();
+}
+
+bool Upgrade::escApprove() const {
+
+    uint32_t process_start_timestamp = millis();
+
+    /* We are waiting for any valid packect from the Left side of the keyboard. If received, we can be pretty sure the ESC key will work */
+    while( ( millis() - process_start_timestamp ) < ESC_APPROVE_TIMEOUT_MS )
+    {
+        Communications.run();
+        watchdog_timer.reset();
+
+        if( Communications.isWiredLeftAlive() == true )
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 EventHandlerResult Upgrade::onSetup() {

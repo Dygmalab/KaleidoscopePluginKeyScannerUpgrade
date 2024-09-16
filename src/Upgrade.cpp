@@ -88,6 +88,12 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command)
       key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
       left.validProgram = key_scanner_flasher_.sendValidateProgram();
       key_scanner_flasher_.getInfoFlasherKS(infoLeft);
+
+      //Check if the ESC key can be used. If not, left side program is assumed as invalid.
+      if( escApprove() == false )
+      {
+        left.validProgram = false;
+      }
     }
 
     //If the left keyboard is has not a valid program then we can continue
@@ -96,12 +102,6 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command)
     }
 
     if(left.validProgram && infoLeft.programVersion == 0x00) {
-      flashing = true;
-    }
-
-    //Check if the ESC key can be used. If not, we will allow the upgrade without it
-    if( escApprove() == false )
-    {
       flashing = true;
     }
 

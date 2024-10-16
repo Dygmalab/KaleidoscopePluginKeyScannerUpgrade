@@ -335,7 +335,7 @@ EventHandlerResult Upgrade::onKeyswitchEvent(Key &mapped_Key, KeyAddr key_addr, 
     return EventHandlerResult::OK;
   }
 
-  if (key_addr.col() == 0 && key_addr.row() == 0 && keyToggledOff(key_state)) {
+  if (key_addr.col() == 0 && key_addr.row() == 0 && keyToggledOn(key_state)) {
     activated    = true;
     pressed_time = Runtime.millisAtCycleStart();
     return EventHandlerResult::EVENT_CONSUMED;

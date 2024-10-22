@@ -125,11 +125,9 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command)
     flashing              = false;
     pressed_time          = 0;
 
-#if COMPILE_RAISE2_KEYBOARD
-      Communications.get_keyscanner_configuration(Devices::KEYSCANNER_DEFY_LEFT);
-       Communications.get_keyscanner_configuration(Devices::KEYSCANNER_DEFY_RIGHT);
-#endif
 
+    Communications.get_keyscanner_configuration(Devices::KEYSCANNER_DEFY_LEFT);
+    Communications.get_keyscanner_configuration(Devices::KEYSCANNER_DEFY_RIGHT);
   }
 
   if (strncmp_P(command + 8, PSTR("keyscanner."), 11) != 0)

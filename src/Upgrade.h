@@ -1,5 +1,5 @@
 /* -*- mode: c++ -*-
- * kaleidoscope::plugin::LEDCapsLockLight -- Highlight CapsLock when active
+ * kaleidoscope::plugin::KeyScannerFlasher
  * Copyright (C) 2020  Dygma Lab S.L.
  *
  * This program is free software: you can redistribute it and/or modify it under

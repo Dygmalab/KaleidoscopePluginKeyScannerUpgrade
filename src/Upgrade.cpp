@@ -26,10 +26,10 @@
 #include "kaleidoscope/plugin/FocusSerial.h"
 
 #include "Communications.h"
-#include "Watchdog_timer.h"
+//#include "Watchdog_timer.h"
 
 #define ESC_APPROVE_TIMEOUT_MS      1000
-extern Watchdog_timer watchdog_timer;
+//extern Watchdog_timer watchdog_timer;
 
 namespace kaleidoscope
 {
@@ -324,7 +324,7 @@ bool Upgrade::escApprove() const {
     while( ( millis() - process_start_timestamp ) < ESC_APPROVE_TIMEOUT_MS )
     {
         Communications.run();
-        watchdog_timer.reset();
+      //watchdog_timer.reset();
 
         if( Communications.isWiredLeftAlive() == true )
         {

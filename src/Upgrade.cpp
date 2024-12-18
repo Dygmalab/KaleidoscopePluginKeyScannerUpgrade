@@ -26,11 +26,11 @@
 #include "kaleidoscope/plugin/FocusSerial.h"
 
 #include "Communications.h"
-//#include "Watchdog_timer.h"
+#include "Watchdog_timer.h"
 
 #define ESC_APPROVE_TIMEOUT_MS              1000
 #define SERIAL_FW_PACKET_WAIT_TIMEOUT_MS    5000
-//extern Watchdog_timer watchdog_timer;
+extern Watchdog_timer watchdog_timer;
 
 namespace kaleidoscope
 {
@@ -137,14 +137,14 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command)
   }
 
   if (strcmp_P(command + 8, PSTR("end")) == 0) {
-    serial_pre_activation = false;
+/*    serial_pre_activation = false;
     activated             = false;
     flashing              = false;
     pressed_time          = 0;
 
-
     Communications.get_keyscanner_configuration(Devices::KEYSCANNER_DEFY_LEFT);
-    Communications.get_keyscanner_configuration(Devices::KEYSCANNER_DEFY_RIGHT);
+    Communications.get_keyscanner_configuration(Devices::KEYSCANNER_DEFY_RIGHT);*/
+    resetSides();
   }
 
   if (strncmp_P(command + 8, PSTR("keyscanner."), 11) != 0)
@@ -330,7 +330,7 @@ bool Upgrade::escApprove() const {
     while( ( millis() - process_start_timestamp ) < ESC_APPROVE_TIMEOUT_MS )
     {
         Communications.run();
-      //watchdog_timer.reset();
+        watchdog_timer.reset();
 
         if( Communications.isWiredLeftAlive() == true )
         {

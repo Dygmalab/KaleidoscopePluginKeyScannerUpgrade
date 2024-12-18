@@ -46,6 +46,7 @@ class Upgrade : public Plugin {
   bool serial_pre_activation = false;
   void resetSides() const;
   bool escApprove() const;
+  bool serialDataRead( uint8_t * p_data, uint32_t data_len, uint32_t timeout_ms );
 };
 
 }  // namespace plugin

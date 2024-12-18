@@ -18,7 +18,7 @@
 #ifndef TEST_JIG
 #include "Upgrade.h"
 #ifdef ARDUINO_ARCH_RP2040
-#include "CRC.h"
+#include "CRC_wrapper.h"
 #elif defined(NRF52_ARCH)
 #include "CRC_wrapper.h"
 #endif
@@ -28,7 +28,8 @@
 #include "Communications.h"
 #include "Watchdog_timer.h"
 
-#define ESC_APPROVE_TIMEOUT_MS      1000
+#define ESC_APPROVE_TIMEOUT_MS              1000
+#define SERIAL_FW_PACKET_WAIT_TIMEOUT_MS    5000
 extern Watchdog_timer watchdog_timer;
 
 namespace kaleidoscope
@@ -48,7 +49,6 @@ namespace plugin
      * upgrade.neuron
      * upgrade.end
      */
-
 
 EventHandlerResult Upgrade::onFocusEvent(const char *command)
 {
@@ -137,14 +137,14 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command)
   }
 
   if (strcmp_P(command + 8, PSTR("end")) == 0) {
-    serial_pre_activation = false;
+/*    serial_pre_activation = false;
     activated             = false;
     flashing              = false;
     pressed_time          = 0;
 
-
     Communications.get_keyscanner_configuration(Devices::KEYSCANNER_DEFY_LEFT);
-    Communications.get_keyscanner_configuration(Devices::KEYSCANNER_DEFY_RIGHT);
+    Communications.get_keyscanner_configuration(Devices::KEYSCANNER_DEFY_RIGHT);*/
+    resetSides();
   }
 
   if (strncmp_P(command + 8, PSTR("keyscanner."), 11) != 0)
@@ -243,6 +243,7 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command)
   }
 
   if (strcmp_P(command + 8 + 11, PSTR("sendWrite")) == 0) {
+
     if (!flashing) return EventHandlerResult::ERROR;
     struct {
       WriteAction write_action;
@@ -250,8 +251,13 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command)
       uint32_t crc32Transmission;
     } packet{};
     watchdog_update();
-    Serial.readBytes((uint8_t *)&packet, sizeof(packet));
-    watchdog_update();
+
+    if( serialDataRead( (uint8_t *)&packet, sizeof( packet ), SERIAL_FW_PACKET_WAIT_TIMEOUT_MS ) == false )
+    {
+        ::Focus.send(false);
+        return EventHandlerResult::ERROR;
+    }
+
     auto info_action = key_scanner_flasher_.getInfoAction();
 
     uint32_t crc32InMemory = crc32(packet.data, packet.write_action.size);
@@ -327,6 +333,44 @@ bool Upgrade::escApprove() const {
         watchdog_timer.reset();
 
         if( Communications.isWiredLeftAlive() == true )
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool Upgrade::serialDataRead( uint8_t * p_data, uint32_t data_len, uint32_t timeout_ms )
+{
+    size_t read_len = 0;
+    size_t bytes_cnt;
+
+    uint32_t process_start_timestamp = millis();
+
+    if( data_len == 0 )
+    {
+        /* Nothing to be received */
+        return true;
+    }
+
+    while( ( millis() - process_start_timestamp ) < timeout_ms )
+    {
+        watchdog_update();
+
+        /* Wait for available data in Serial */
+        if( Serial.available() == 0 )
+        {
+            continue;
+        }
+
+        bytes_cnt = Serial.readBytes( p_data, data_len - read_len );
+
+        p_data += bytes_cnt;
+        read_len += bytes_cnt;
+
+        /* Finish here if all data has been read */
+        if( read_len == data_len )
         {
             return true;
         }

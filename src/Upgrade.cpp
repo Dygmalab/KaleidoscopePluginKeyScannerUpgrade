@@ -179,10 +179,8 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command)
       key_scanner_flasher_.getInfoFlasherKS(infoLeft);
 
       //Check if the ESC key can be used. If not, left side program is assumed as invalid.
-      if( escApprove() == false )
-      {
-        left.validProgram = false;
-      }
+      left.validProgram = false;
+
     }
 
     //If the left keyboard is has not a valid program then we can continue

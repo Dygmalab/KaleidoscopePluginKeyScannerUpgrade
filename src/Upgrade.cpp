@@ -21,6 +21,8 @@
 #include "CRC_wrapper.h"
 #elif defined(NRF52_ARCH)
 #include "CRC_wrapper.h"
+#include "nrf_gpio.h"
+#include "common.h"
 #endif
 
 #include "kaleidoscope/plugin/FocusSerial.h"
@@ -34,8 +36,72 @@ extern Watchdog_timer watchdog_timer;
 
 namespace kaleidoscope
 {
-namespace plugin
-{
+namespace plugin {
+
+    void Upgrade::setup_right_connection()
+    {
+        while (!right.connected)
+        {
+            Runtime.device().side.prepareForFlash();
+
+            if (!right.connected) {
+                for (uint8_t i = 0; i < 3; i++) {
+                    key_scanner_flasher_.setSide(KeyScannerFlasher::RIGHT);
+                    right.connected = key_scanner_flasher_.sendBegin();
+                    NRF_LOG_INFO("Return from sendBegin right side: %d", right.connected);
+                }
+            }
+
+            if (!right.connected)
+            {
+                NRF_LOG_INFO("Right side not connected, resetting it");
+                nrf_gpio_cfg_output(SIDE_NRESET_1);
+                nrf_gpio_pin_write(SIDE_NRESET_1, 0);
+                delay(10);
+                nrf_gpio_cfg_input(SIDE_NRESET_1, NRF_GPIO_PIN_NOPULL);
+                delay(50); // We should give a bit more time but for now lest leave it like this
+            }
+            else if (right.connected)
+            {
+                NRF_LOG_INFO("RIGHT SIDE CONNECTED");
+            }
+        }
+    }
+//TODO: add some timeout and return false. true otherwise
+    void Upgrade::setup_left_connection()
+    {
+        while (!left.connected)
+        {
+            Runtime.device().side.prepareForFlash();
+            if(!left.connected)
+            {
+                for (uint8_t i = 0 ; i <3; i++)
+                {
+                    key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
+                    left.connected = key_scanner_flasher_.sendBegin();
+                    NRF_LOG_INFO("Return from sendBegin left side: %d", left.connected);
+                }
+            }
+
+            if (!left.connected)
+            {
+                NRF_LOG_INFO("Left side not connected, resetting it");
+                nrf_gpio_cfg_output(SIDE_NRESET_2);
+                nrf_gpio_pin_write(SIDE_NRESET_2, 0);
+                delay(10);
+                nrf_gpio_cfg_input(SIDE_NRESET_2, NRF_GPIO_PIN_NOPULL);
+                delay(50); // We should give a bit more time but for now lest leave it like this
+            }
+            else if (left.connected)
+            {
+                NRF_LOG_INFO("LEFT SIDE CONNECTED");
+            }
+
+            NRF_LOG_FLUSH();
+        }
+    }
+
+
     /*
      *Bzecor steps in order.
      * upgrade.start
@@ -84,26 +150,32 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command)
 
     uint8_t i=0;
     flashing = false;
+
     right.connected = false;
     left.connected = false;
+
     left.validProgram = false;
     right.validProgram = false;
-    while (!(right.connected && left.connected) && i < 3) {
-      key_scanner_flasher_.setSide(KeyScannerFlasher::RIGHT);
-      right.connected = key_scanner_flasher_.sendBegin();
-      key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
-      left.connected = key_scanner_flasher_.sendBegin();
-      i++;
-    }
 
-    if (right.connected) {
+    setup_right_connection();
+
+    setup_left_connection();
+
+    if (right.connected)
+    {
+      NRF_LOG_INFO("Sending validate program right side");
       key_scanner_flasher_.setSide(KeyScannerFlasher::RIGHT);
       right.validProgram = key_scanner_flasher_.sendValidateProgram();
+      NRF_LOG_INFO("validated right program : %d", right.validProgram);
     }
 
-    if (left.connected) {
+    if (left.connected)
+    {
+      NRF_LOG_INFO("Sending validate program left side");
       key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
       left.validProgram = key_scanner_flasher_.sendValidateProgram();
+      NRF_LOG_INFO("validated left program : %d", left.validProgram);
+
       key_scanner_flasher_.getInfoFlasherKS(infoLeft);
 
       //Check if the ESC key can be used. If not, left side program is assumed as invalid.
@@ -114,15 +186,17 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command)
     }
 
     //If the left keyboard is has not a valid program then we can continue
-    if ( !left.validProgram ) {
+    if ( !left.validProgram )
+    {
       flashing = true;
     }
 
-    if(left.validProgram && infoLeft.programVersion == 0x00) {
+    if(left.validProgram && infoLeft.programVersion == 0x00)
+    {
       flashing = true;
     }
 
-    resetSides();
+    //resetSides();
 
     return EventHandlerResult::EVENT_CONSUMED;
   }
@@ -190,7 +264,8 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command)
     return EventHandlerResult::EVENT_CONSUMED;
   }
 
-  if (strcmp_P(command + 8 + 11, PSTR("begin")) == 0) {
+  if (strcmp_P(command + 8 + 11, PSTR("begin")) == 0)
+  {
     if (!flashing) return EventHandlerResult::ERROR;
 
     if (::Focus.isEOL()) return EventHandlerResult::EVENT_CONSUMED;
@@ -202,15 +277,27 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command)
     }
 
     key_scanner_flasher_.setSide((KeyScannerFlasher::Side)side);
-    resetSides();
+
     bool active_side = false;
     uint8_t i=0;
-    while (!active_side && i < 3) {
-      active_side = key_scanner_flasher_.sendBegin();
-      i++;
+
+    if(side == KeyScannerFlasher::Side::RIGHT)
+    {
+        NRF_LOG_INFO("Setting up RIGHT side connection");
+        setup_right_connection();
+        active_side = true;
     }
 
-    if (active_side) {
+    if ( side == KeyScannerFlasher::Side::LEFT )
+    {
+        NRF_LOG_INFO("Setting up LEFT side connection");
+        setup_left_connection();
+        active_side = true;
+    }
+    NRF_LOG_FLUSH();
+
+    if (active_side)
+    {
       Focus.send(true);
       return EventHandlerResult::EVENT_CONSUMED;
     }
@@ -296,7 +383,7 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command)
       return EventHandlerResult::ERROR;
     }
     Focus.send(true);
-    Runtime.device().side.reset_sides();
+   //Runtime.device().side.reset_sides();
   }
 
   if (strcmp_P(command + 8 + 11, PSTR("sendStart")) == 0) {

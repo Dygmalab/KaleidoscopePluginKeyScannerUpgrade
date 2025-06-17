@@ -44,6 +44,8 @@ class Upgrade : public Plugin {
   uint16_t press_time{1};
   uint16_t pressed_time{0};
   bool serial_pre_activation = false;
+  void setup_right_connection();
+  void setup_left_connection();
   void resetSides() const;
   bool escApprove() const;
   bool serialDataRead( uint8_t * p_data, uint32_t data_len, uint32_t timeout_ms );

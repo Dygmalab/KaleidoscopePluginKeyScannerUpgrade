@@ -48,22 +48,12 @@ namespace plugin {
                 for (uint8_t i = 0; i < 3; i++) {
                     key_scanner_flasher_.setSide(KeyScannerFlasher::RIGHT);
                     right.connected = key_scanner_flasher_.sendBegin();
-                    NRF_LOG_INFO("Return from sendBegin right side: %d", right.connected);
                 }
             }
 
             if (!right.connected)
             {
-                NRF_LOG_INFO("Right side not connected, resetting it");
-                nrf_gpio_cfg_output(SIDE_NRESET_1);
-                nrf_gpio_pin_write(SIDE_NRESET_1, 0);
-                delay(10);
-                nrf_gpio_cfg_input(SIDE_NRESET_1, NRF_GPIO_PIN_NOPULL);
-                delay(50); // We should give a bit more time but for now lest leave it like this
-            }
-            else if (right.connected)
-            {
-                NRF_LOG_INFO("RIGHT SIDE CONNECTED");
+                Runtime.device().side.reset_right_side();
             }
         }
     }
@@ -79,31 +69,19 @@ namespace plugin {
                 {
                     key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
                     left.connected = key_scanner_flasher_.sendBegin();
-                    NRF_LOG_INFO("Return from sendBegin left side: %d", left.connected);
                 }
             }
 
             if (!left.connected)
             {
-                NRF_LOG_INFO("Left side not connected, resetting it");
-                nrf_gpio_cfg_output(SIDE_NRESET_2);
-                nrf_gpio_pin_write(SIDE_NRESET_2, 0);
-                delay(10);
-                nrf_gpio_cfg_input(SIDE_NRESET_2, NRF_GPIO_PIN_NOPULL);
-                delay(50); // We should give a bit more time but for now lest leave it like this
+                Runtime.device().side.reset_left_side();
             }
-            else if (left.connected)
-            {
-                NRF_LOG_INFO("LEFT SIDE CONNECTED");
-            }
-
-            NRF_LOG_FLUSH();
         }
     }
 
 
     /*
-     *Bzecor steps in order.
+     *Bazecor steps in order.
      * upgrade.start
      * upgrade.keyscanner.isConnected (0:Right / 1:Left)
      * upgrade.keyscanner.isBootloader (0:Right / 1:Left)
@@ -163,18 +141,14 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command)
 
     if (right.connected)
     {
-      NRF_LOG_INFO("Sending validate program right side");
       key_scanner_flasher_.setSide(KeyScannerFlasher::RIGHT);
       right.validProgram = key_scanner_flasher_.sendValidateProgram();
-      NRF_LOG_INFO("validated right program : %d", right.validProgram);
     }
 
     if (left.connected)
     {
-      NRF_LOG_INFO("Sending validate program left side");
       key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
       left.validProgram = key_scanner_flasher_.sendValidateProgram();
-      NRF_LOG_INFO("validated left program : %d", left.validProgram);
 
       key_scanner_flasher_.getInfoFlasherKS(infoLeft);
 
@@ -281,18 +255,15 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command)
 
     if(side == KeyScannerFlasher::Side::RIGHT)
     {
-        NRF_LOG_INFO("Setting up RIGHT side connection");
         setup_right_connection();
         active_side = true;
     }
 
     if ( side == KeyScannerFlasher::Side::LEFT )
     {
-        NRF_LOG_INFO("Setting up LEFT side connection");
         setup_left_connection();
         active_side = true;
     }
-    NRF_LOG_FLUSH();
 
     if (active_side)
     {

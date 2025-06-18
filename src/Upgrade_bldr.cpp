@@ -32,78 +32,79 @@
 
 #define ESC_APPROVE_TIMEOUT_MS              1000
 #define SERIAL_FW_PACKET_WAIT_TIMEOUT_MS    5000
+#define CONNECTION_TIMEOUT_MS               3000
 extern Watchdog_timer watchdog_timer;
+
+uint64_t conn_timeout_timer = 0;
+
 
 namespace kaleidoscope
 {
 namespace plugin {
 
-    void Upgrade::setup_right_connection()
+    bool Upgrade::setup_right_connection()
     {
+        conn_timeout_timer = millis();
         while (!right.connected)
         {
             Runtime.device().side.prepareForFlash();
 
             if (!right.connected) {
-                for (uint8_t i = 0; i < 3; i++) {
+                for (uint8_t i = 0; i < 4; i++) {
                     key_scanner_flasher_.setSide(KeyScannerFlasher::RIGHT);
                     right.connected = key_scanner_flasher_.sendBegin();
-                    NRF_LOG_INFO("Return from sendBegin right side: %d", right.connected);
                 }
             }
 
             if (!right.connected)
             {
-                NRF_LOG_INFO("Right side not connected, resetting it");
-                nrf_gpio_cfg_output(SIDE_NRESET_1);
-                nrf_gpio_pin_write(SIDE_NRESET_1, 0);
-                delay(10);
-                nrf_gpio_cfg_input(SIDE_NRESET_1, NRF_GPIO_PIN_NOPULL);
-                delay(50); // We should give a bit more time but for now lest leave it like this
+                Runtime.device().side.reset_right_side();
             }
-            else if (right.connected)
+
+            if (millis() - conn_timeout_timer > CONNECTION_TIMEOUT_MS &&
+                !right.connected)
             {
-                NRF_LOG_INFO("RIGHT SIDE CONNECTED");
+                return false;
             }
         }
+
+        return true;
+
     }
-//TODO: add some timeout and return false. true otherwise
-    void Upgrade::setup_left_connection()
+
+    bool Upgrade::setup_left_connection()
     {
+        conn_timeout_timer = millis();
         while (!left.connected)
         {
             Runtime.device().side.prepareForFlash();
             if(!left.connected)
             {
-                for (uint8_t i = 0 ; i <3; i++)
+                for (uint8_t i = 0 ; i <4; i++)
                 {
                     key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
                     left.connected = key_scanner_flasher_.sendBegin();
-                    NRF_LOG_INFO("Return from sendBegin left side: %d", left.connected);
                 }
             }
 
             if (!left.connected)
             {
-                NRF_LOG_INFO("Left side not connected, resetting it");
-                nrf_gpio_cfg_output(SIDE_NRESET_2);
-                nrf_gpio_pin_write(SIDE_NRESET_2, 0);
-                delay(10);
-                nrf_gpio_cfg_input(SIDE_NRESET_2, NRF_GPIO_PIN_NOPULL);
-                delay(50); // We should give a bit more time but for now lest leave it like this
-            }
-            else if (left.connected)
-            {
-                NRF_LOG_INFO("LEFT SIDE CONNECTED");
+                Runtime.device().side.reset_left_side();
             }
 
-            NRF_LOG_FLUSH();
+            if (millis() - conn_timeout_timer > CONNECTION_TIMEOUT_MS && !left.connected)
+            {
+                return false;
+            }
+
         }
+
+        return true;
     }
 
 
     /*
-     *Bzecor steps in order.
+     *Bazecor steps in order.
      * upgrade.start
      * upgrade.keyscanner.isConnected (0:Right / 1:Left)
      * upgrade.keyscanner.isBootloader (0:Right / 1:Left)
@@ -123,15 +124,15 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command)
                            "upgrade.start\n"
                            "upgrade.neuron\n"
                            "upgrade.end\n"
-                           "upgrade.keyscanner.isConnected\n"   //Check if is connected (0 left 1 right)
-                           "upgrade.keyscanner.isBootloader\n"  //Check if in bootloader mode (0 left 1 right)
-                           "upgrade.keyscanner.begin\n"         //Choose the side (0 left 1 right)
+                           "upgrade.keyscanner.isConnected\n"   //Check if is connected (zero left 1 right)
+                           "upgrade.keyscanner.isBootloader\n"  //Check if in bootloader mode (zero left 1 right)
+                           "upgrade.keyscanner.begin\n"         //Choose the side (zero left 1 right)
                            "upgrade.keyscanner.isReady\n"       //Returns if the upgrade can begin successfully
                            "upgrade.keyscanner.getInfo\n"       //Version, and CRC, and is connected and start address, program is OK
                            "upgrade.keyscanner.sendWrite\n"     //Write //{Address size DATA crc} Check if we are going to support --? true false
                            "upgrade.keyscanner.validate\n"      //Check validity
                            "upgrade.keyscanner.finish\n"        //Finish bootloader
-                           "upgrade.keyscanner.sendStart")))    //Start main application and check validy //true false
+                           "upgrade.keyscanner.sendStart")))    //Start the main application and check valid //true false
 
     return EventHandlerResult::OK;
   //TODO set numbers ot PSTR
@@ -148,7 +149,6 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command)
 
     resetSides();
 
-    uint8_t i=0;
     flashing = false;
 
     right.connected = false;
@@ -163,18 +163,14 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command)
 
     if (right.connected)
     {
-      NRF_LOG_INFO("Sending validate program right side");
       key_scanner_flasher_.setSide(KeyScannerFlasher::RIGHT);
       right.validProgram = key_scanner_flasher_.sendValidateProgram();
-      NRF_LOG_INFO("validated right program : %d", right.validProgram);
     }
 
     if (left.connected)
     {
-      NRF_LOG_INFO("Sending validate program left side");
       key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
       left.validProgram = key_scanner_flasher_.sendValidateProgram();
-      NRF_LOG_INFO("validated left program : %d", left.validProgram);
 
       key_scanner_flasher_.getInfoFlasherKS(infoLeft);
 
@@ -193,8 +189,6 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command)
     {
       flashing = true;
     }
-
-    //resetSides();
 
     return EventHandlerResult::EVENT_CONSUMED;
   }
@@ -281,18 +275,23 @@ EventHandlerResult Upgrade::onFocusEvent(const char *command)
 
     if(side == KeyScannerFlasher::Side::RIGHT)
     {
-        NRF_LOG_INFO("Setting up RIGHT side connection");
-        setup_right_connection();
+        if (setup_right_connection() == false)
+        {
+            Focus.send(false);
+            return EventHandlerResult::ERROR;
+        }
         active_side = true;
     }
 
     if ( side == KeyScannerFlasher::Side::LEFT )
     {
-        NRF_LOG_INFO("Setting up LEFT side connection");
-        setup_left_connection();
+        if (setup_left_connection() == false)
+        {
+            Focus.send(false);
+            return EventHandlerResult::ERROR;
+        }
         active_side = true;
     }
-    NRF_LOG_FLUSH();
 
     if (active_side)
     {

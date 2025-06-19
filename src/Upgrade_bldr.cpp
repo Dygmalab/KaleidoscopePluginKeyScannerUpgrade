@@ -47,7 +47,6 @@ namespace plugin {
         conn_timeout_timer = millis();
         while (!right.connected)
         {
-            Serial.printf("STUCK");
             Runtime.device().side.prepareForFlash();
 
             if (!right.connected) {
@@ -78,7 +77,6 @@ namespace plugin {
         conn_timeout_timer = millis();
         while (!left.connected)
         {
-            Serial.printf("STUCK");
             Runtime.device().side.prepareForFlash();
             if(!left.connected)
             {

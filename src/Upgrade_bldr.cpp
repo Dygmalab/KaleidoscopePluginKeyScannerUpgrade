@@ -32,7 +32,7 @@
 
 #define ESC_APPROVE_TIMEOUT_MS              1000
 #define SERIAL_FW_PACKET_WAIT_TIMEOUT_MS    5000
-#define CONNECTION_TIMEOUT_MS               3000
+#define CONNECTION_TIMEOUT_MS               1500
 extern Watchdog_timer watchdog_timer;
 
 uint64_t conn_timeout_timer = 0;
@@ -47,10 +47,11 @@ namespace plugin {
         conn_timeout_timer = millis();
         while (!right.connected)
         {
+            Serial.printf("STUCK");
             Runtime.device().side.prepareForFlash();
 
             if (!right.connected) {
-                for (uint8_t i = 0; i < 4; i++) {
+                for (uint8_t i = 0; i < 3; i++) {
                     key_scanner_flasher_.setSide(KeyScannerFlasher::RIGHT);
                     right.connected = key_scanner_flasher_.sendBegin();
                 }
@@ -77,10 +78,11 @@ namespace plugin {
         conn_timeout_timer = millis();
         while (!left.connected)
         {
+            Serial.printf("STUCK");
             Runtime.device().side.prepareForFlash();
             if(!left.connected)
             {
-                for (uint8_t i = 0 ; i <4; i++)
+                for (uint8_t i = 0 ; i <3; i++)
                 {
                     key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
                     left.connected = key_scanner_flasher_.sendBegin();

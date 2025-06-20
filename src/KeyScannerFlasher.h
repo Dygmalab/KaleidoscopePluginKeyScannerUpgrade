@@ -22,6 +22,7 @@
 #include "ApiBootloaderKeyscanner.h"
 #include "Arduino.h"
 #include "Wire.h"
+#include <cstdint>
 
 #define WIRE_ Wire1
 

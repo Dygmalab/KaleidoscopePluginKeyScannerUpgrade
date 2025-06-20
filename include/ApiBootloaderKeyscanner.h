@@ -18,6 +18,8 @@
 #ifndef API_BOOTLOADER_KEYSCANNER_H_
 #define API_BOOTLOADER_KEYSCANNER_H_
 
+#include <cstdint>
+
 enum Action {
   BEGIN            = 'B',
   INFO             = 'I',

@@ -39,68 +39,65 @@ extern Watchdog_timer watchdog_timer;
 
 uint64_t conn_timeout_timer = 0;
 
-
-namespace kaleidoscope
+bool Upgrade::setup_right_connection()
 {
-    bool Upgrade::setup_right_connection()
+    conn_timeout_timer = millis();
+    while (!right.connected)
     {
-        conn_timeout_timer = millis();
-        while (!right.connected)
-        {
-            Runtime.device().side.prepareForFlash();
+        kaleidoscope::Runtime.device().side.prepareForFlash();
 
-            if (!right.connected) {
-                for (uint8_t i = 0; i < 3; i++) {
-                    key_scanner_flasher_.setSide(KeyScannerFlasher::RIGHT);
-                    right.connected = key_scanner_flasher_.sendBegin();
-                }
-            }
-
-            if (!right.connected)
-            {
-                Runtime.device().side.reset_right_side();
-            }
-
-            if (millis() - conn_timeout_timer > CONNECTION_TIMEOUT_MS &&
-                !right.connected)
-            {
-                return false;
+        if (!right.connected) {
+            for (uint8_t i = 0; i < 3; i++) {
+                key_scanner_flasher_.setSide(KeyScannerFlasher::RIGHT);
+                right.connected = key_scanner_flasher_.sendBegin();
             }
         }
 
-        return true;
-
-    }
-
-    bool Upgrade::setup_left_connection()
-    {
-        conn_timeout_timer = millis();
-        while (!left.connected)
+        if (!right.connected)
         {
-            Runtime.device().side.prepareForFlash();
-            if(!left.connected)
-            {
-                for (uint8_t i = 0 ; i <3; i++)
-                {
-                    key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
-                    left.connected = key_scanner_flasher_.sendBegin();
-                }
-            }
-
-            if (!left.connected)
-            {
-                Runtime.device().side.reset_left_side();
-            }
-
-            if (millis() - conn_timeout_timer > CONNECTION_TIMEOUT_MS && !left.connected)
-            {
-                return false;
-            }
-
+            kaleidoscope::Runtime.device().side.reset_right_side();
         }
 
-        return true;
+        if (millis() - conn_timeout_timer > CONNECTION_TIMEOUT_MS &&
+            !right.connected)
+        {
+            return false;
+        }
     }
+
+    return true;
+
+}
+
+bool Upgrade::setup_left_connection()
+{
+    conn_timeout_timer = millis();
+    while (!left.connected)
+    {
+        kaleidoscope::Runtime.device().side.prepareForFlash();
+        if(!left.connected)
+        {
+            for (uint8_t i = 0 ; i <3; i++)
+            {
+                key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
+                left.connected = key_scanner_flasher_.sendBegin();
+            }
+        }
+
+        if (!left.connected)
+        {
+            kaleidoscope::Runtime.device().side.reset_left_side();
+        }
+
+        if (millis() - conn_timeout_timer > CONNECTION_TIMEOUT_MS && !left.connected)
+        {
+            return false;
+        }
+
+    }
+
+    return true;
+}
 
 
     /*
@@ -124,16 +121,16 @@ result_t Upgrade::init()
     result = kbdif_initialize();
     EXIT_IF_ERR( result, "kbdif_initialize failed" );
 
-    key_scanner_flasher_.setLeftBootAddress(Runtime.device().side.left_boot_address);
-    key_scanner_flasher_.setRightBootAddress(Runtime.device().side.right_boot_address);
+    key_scanner_flasher_.setLeftBootAddress(kaleidoscope::Runtime.device().side.left_boot_address);
+    key_scanner_flasher_.setRightBootAddress(kaleidoscope::Runtime.device().side.right_boot_address);
 
 _EXIT:
     return result;
 }
 
 void Upgrade::resetSides() const {
-  Runtime.device().side.prepareForFlash();
-  Runtime.device().side.reset_sides();
+    kaleidoscope::Runtime.device().side.prepareForFlash();
+    kaleidoscope::Runtime.device().side.reset_sides();
 }
 
 bool Upgrade::escApprove() const {
@@ -210,7 +207,7 @@ void Upgrade::run()
         return;
     }
 
-    if (Runtime.hasTimeExpired(pressed_time, press_time))
+    if (kaleidoscope::Runtime.hasTimeExpired(pressed_time, press_time))
     {
       flashing = true;
       activated = false;
@@ -253,7 +250,7 @@ kbdapi_event_result_t Upgrade::kbdif_key_event_process( kbdapi_key_t * p_key )
 
     if (p_key->coord.col == 0 && p_key->coord.row == 0 && p_key->toggled_on) {
       activated    = true;
-      pressed_time = Runtime.millisAtCycleStart();
+      pressed_time = kaleidoscope::Runtime.millisAtCycleStart();
       return KBDAPI_EVENT_RESULT_CONSUMED;
     }
 
@@ -287,8 +284,8 @@ kbdapi_event_result_t Upgrade::kbdif_command_event_process( const char * p_comma
       InfoAction infoLeft{};
       serial_pre_activation = true;
 
-      Runtime.hid().keyboard().releaseAllKeys();
-      Runtime.hid().keyboard().sendReport();
+      kaleidoscope::Runtime.hid().keyboard().releaseAllKeys();
+      kaleidoscope::Runtime.hid().keyboard().sendReport();
 
       resetSides();
 
@@ -338,7 +335,7 @@ kbdapi_event_result_t Upgrade::kbdif_command_event_process( const char * p_comma
 
     if (strcmp_P(p_command + 8, PSTR("neuron")) == 0) {
       if (!flashing) return KBDAPI_EVENT_RESULT_ERROR;
-      Runtime.rebootBootloader();
+      kaleidoscope::Runtime.rebootBootloader();
     }
 
     if (strcmp_P(p_command + 8, PSTR("isReady")) == 0) {
@@ -564,10 +561,6 @@ const kbdif_handlers_t Upgrade::kbdif_handlers =
     .command_event_cb = kbdif_command_event_cb,
 };
 
-}  // namespace kaleidoscope
-
-
-kaleidoscope::Upgrade Upgrade;
-
+class Upgrade Upgrade;
 
 #endif

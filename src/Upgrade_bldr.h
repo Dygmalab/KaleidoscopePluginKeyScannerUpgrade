@@ -17,12 +17,10 @@
 #ifndef TEST_JIG
 #pragma once
 
-#include <Kaleidoscope.h>
 #include "KeyScannerFlasher.h"
 
 #include "kbd_if.h"
 
-namespace kaleidoscope {
 class Upgrade {
  public:
   result_t init();
@@ -58,7 +56,5 @@ class Upgrade {
   static kbdapi_event_result_t kbdif_command_event_cb( void * p_instance, const char * p_command );
 };
 
-}  // namespace kaleidoscope
-
-extern kaleidoscope::Upgrade Upgrade;
+extern class Upgrade Upgrade;
 #endif

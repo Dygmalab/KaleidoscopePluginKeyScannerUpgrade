@@ -34,8 +34,6 @@
 #define SERIAL_FW_PACKET_WAIT_TIMEOUT_MS    5000
 extern Watchdog_timer watchdog_timer;
 
-namespace kaleidoscope
-{
     /*
      *Bazecor steps in order.
      * upgrade.start
@@ -57,16 +55,16 @@ result_t Upgrade::init()
     result = kbdif_initialize();
     EXIT_IF_ERR( result, "kbdif_initialize failed" );
 
-    key_scanner_flasher_.setLeftBootAddress(Runtime.device().side.left_boot_address);
-    key_scanner_flasher_.setRightBootAddress(Runtime.device().side.right_boot_address);
+    key_scanner_flasher_.setLeftBootAddress(kaleidoscope::Runtime.device().side.left_boot_address);
+    key_scanner_flasher_.setRightBootAddress(kaleidoscope::Runtime.device().side.right_boot_address);
 
 _EXIT:
     return result;
 }
 
 void Upgrade::resetSides() const {
-  Runtime.device().side.prepareForFlash();
-  Runtime.device().side.reset_sides();
+    kaleidoscope::Runtime.device().side.prepareForFlash();
+    kaleidoscope::Runtime.device().side.reset_sides();
 }
 
 bool Upgrade::escApprove() const {
@@ -143,7 +141,7 @@ void Upgrade::run()
         return;
     }
 
-    if (Runtime.hasTimeExpired(pressed_time, press_time))
+    if (kaleidoscope::Runtime.hasTimeExpired(pressed_time, press_time))
     {
       flashing = true;
       activated = false;
@@ -186,7 +184,7 @@ kbdapi_event_result_t Upgrade::kbdif_key_event_process( kbdapi_key_t * p_key )
 
     if (p_key->coord.col == 0 && p_key->coord.row == 0 && p_key->toggled_on) {
       activated    = true;
-      pressed_time = Runtime.millisAtCycleStart();
+      pressed_time = kaleidoscope::Runtime.millisAtCycleStart();
       return KBDAPI_EVENT_RESULT_CONSUMED;
     }
 
@@ -220,8 +218,8 @@ kbdapi_event_result_t Upgrade::kbdif_command_event_process( const char * p_comma
       InfoAction infoLeft{};
       serial_pre_activation = true;
 
-      Runtime.hid().keyboard().releaseAllKeys();
-      Runtime.hid().keyboard().sendReport();
+      kaleidoscope::Runtime.hid().keyboard().releaseAllKeys();
+      kaleidoscope::Runtime.hid().keyboard().sendReport();
 
       resetSides();
 
@@ -272,7 +270,7 @@ kbdapi_event_result_t Upgrade::kbdif_command_event_process( const char * p_comma
 
     if (strcmp_P(p_command + 8, PSTR("neuron")) == 0) {
       if (!flashing) return KBDAPI_EVENT_RESULT_ERROR;
-      Runtime.rebootBootloader();
+      kaleidoscope::Runtime.rebootBootloader();
     }
 
     if (strcmp_P(p_command + 8, PSTR("isReady")) == 0) {
@@ -439,7 +437,7 @@ kbdapi_event_result_t Upgrade::kbdif_command_event_process( const char * p_comma
         return KBDAPI_EVENT_RESULT_ERROR;
       }
       Focus.send(true);
-      Runtime.device().side.reset_sides();
+      kaleidoscope::Runtime.device().side.reset_sides();
     }
 
     if (strcmp_P(p_command + 8 + 11, PSTR("sendStart")) == 0) {
@@ -480,10 +478,6 @@ const kbdif_handlers_t Upgrade::kbdif_handlers =
     .command_event_cb = kbdif_command_event_cb,
 };
 
-}  // namespace kaleidoscope
-
-
-kaleidoscope::Upgrade Upgrade;
-
+class Upgrade Upgrade;
 
 #endif

@@ -23,7 +23,7 @@
 enum Action {
   BEGIN            = 'B',
   INFO             = 'I',
-  SEAL             = 'S',
+//  SEAL             = 'S',
   WRITE            = 'W',
   READ             = 'R',
   ERASE            = 'E',

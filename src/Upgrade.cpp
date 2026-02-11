@@ -437,6 +437,7 @@ kbdapi_event_result_t Upgrade::kbdif_command_event_process( const char * p_comma
         return KBDAPI_EVENT_RESULT_ERROR;
       }
       Focus.send(true);
+      delay(100);       /* Let keyscanner finish its processes */
       kaleidoscope::Runtime.device().side.reset_sides();
     }
 

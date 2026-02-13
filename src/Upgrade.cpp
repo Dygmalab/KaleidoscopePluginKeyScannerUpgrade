@@ -351,33 +351,41 @@ kbdapi_event_result_t Upgrade::kbdif_command_event_process( const char * p_comma
         i++;
       }
 
-      if (active_side) {
-        Focus.send(true);
-        return KBDAPI_EVENT_RESULT_CONSUMED;
+      if (!active_side) {
+        Focus.send(false);
+        return KBDAPI_EVENT_RESULT_ERROR;
       }
 
-      Focus.send(false);
-      return KBDAPI_EVENT_RESULT_ERROR;
+      /* Get the transfer information of the active keyscanner  */
+      InfoAction infoAction{};
+      if( !key_scanner_flasher_.getInfoFlasherKS(infoAction) )
+      {
+          Focus.send(false);
+          return KBDAPI_EVENT_RESULT_ERROR;
+      }
+
+      key_scanner_flasher_.setSideInfo(infoAction);
+
+      /* Set the maximum transfer size */
+      buffer_tx_size_max_set( infoAction.maxTransmissionLength );
+
+      Focus.send(true);
+      return KBDAPI_EVENT_RESULT_CONSUMED;
     }
 
     if (strcmp_P(p_command + 8 + 11, PSTR("getInfo")) == 0) {
       if (!flashing) return KBDAPI_EVENT_RESULT_ERROR;
-      InfoAction info{};
-      if (!key_scanner_flasher_.getInfoFlasherKS(info)) {
-        Focus.send(false);
-        return KBDAPI_EVENT_RESULT_ERROR;
-      }
-      key_scanner_flasher_.setSideInfo(info);
+      auto info_action = key_scanner_flasher_.getInfoAction();
 
-      ReadAction read{info.validationSpaceStart, sizeof(Seal)};
+      ReadAction read{info_action.validationSpaceStart, sizeof(Seal)};
       Seal seal{};
       key_scanner_flasher_.sendReadAction(read);
       if (key_scanner_flasher_.readData((uint8_t *)&seal, sizeof(Seal)) != sizeof(Seal)) {
         Focus.send(false);
         return KBDAPI_EVENT_RESULT_ERROR;
       }
-      Focus.send(info.hardwareVersion);
-      Focus.send(info.flashStart);
+      Focus.send(info_action.hardwareVersion);
+      Focus.send(info_action.flashStart);
       Focus.send(seal.programVersion);
       Focus.send(seal.programCrc);
       Focus.send(true);
@@ -415,11 +423,27 @@ kbdapi_event_result_t Upgrade::kbdif_command_event_process( const char * p_comma
         }
       }
 
-      uint32_t crcKeyScannerCalculation = key_scanner_flasher_.sendWriteAction(packet.write_action, packet.data);
-      if (crcKeyScannerCalculation != packet.crc32Transmission) {
+      /* Add data into the output buffer */
+      if( !buffer_data_add( packet.write_action.addr, packet.data, packet.write_action.size) )
+      {
         ::Focus.send(false);
         return KBDAPI_EVENT_RESULT_ERROR;
       }
+
+      /* Check if the buffer has been filled */
+      if( buffer_freesize_get() != 0 )
+      {
+          /* Wait for more data to come */
+          ::Focus.send(true);
+          return KBDAPI_EVENT_RESULT_CONSUMED;
+      }
+
+      if( !buffer_send_write_action() )
+      {
+          ::Focus.send(false);
+          return KBDAPI_EVENT_RESULT_ERROR;
+      }
+
       ::Focus.send(true);
     }
 
@@ -432,6 +456,12 @@ kbdapi_event_result_t Upgrade::kbdif_command_event_process( const char * p_comma
     }
 
     if (strcmp_P(p_command + 8 + 11, PSTR("finish")) == 0) {
+      /* Semd the remaining data in the buffer */
+      if( !buffer_send_write_action() )
+      {
+        ::Focus.send(false);
+        return KBDAPI_EVENT_RESULT_ERROR;
+      }
       if (!key_scanner_flasher_.sendFinish()) {
         Focus.send(false);
         return KBDAPI_EVENT_RESULT_ERROR;
@@ -458,6 +488,87 @@ kbdapi_event_result_t Upgrade::kbdif_command_event_process( const char * p_comma
 
     return KBDAPI_EVENT_RESULT_CONSUMED;
 }
+
+/**************************************************/
+/*                Buffer processing               */
+/**************************************************/
+
+void Upgrade::buffer_tx_size_max_set( uint16_t tx_size_max )
+{
+    buffer_tx_size_max = ( tx_size_max <= sizeof(buffer_data) ) ? tx_size_max : sizeof(buffer_data);
+
+    buffer_clear();
+}
+
+uint16_t Upgrade::buffer_loadsize_get( void )
+{
+    return buffer_pos;
+}
+
+uint16_t Upgrade::buffer_freesize_get( void )
+{
+    return buffer_tx_size_max - buffer_pos;
+}
+
+bool Upgrade::buffer_data_add( uint32_t flash_addr, uint8_t * p_data, uint16_t data_len )
+{
+    if( data_len > buffer_freesize_get() )
+    {
+        ASSERT_DYGMA( false, "Upgrade: buffer overflow" );
+        return false;
+    }
+
+    /* Check if we are starting new block and, eventually, save the target flash address */
+    if( buffer_loadsize_get() == 0 )
+    {
+        buffer_flash_addr = flash_addr;
+    }
+
+    /* Add data into the buffer */
+    memcpy( &buffer_data[buffer_pos], p_data, data_len );
+
+    /* Adjust the buffer position */
+    buffer_pos += data_len;
+
+    return true;
+}
+
+void Upgrade::buffer_clear( void )
+{
+    buffer_pos = 0;
+}
+
+bool Upgrade::buffer_send_write_action( void )
+{
+    WriteAction write_action;
+    uint32_t crcBufferCalculation;
+    uint32_t crcKeyScannerCalculation;
+
+    if( buffer_loadsize_get() == 0 )
+    {
+        /* Nothing to be sent */
+        return true;
+    }
+
+    /* Calculate the CRC of the data in the buffer */
+    crcBufferCalculation = crc32( buffer_data, buffer_loadsize_get() );
+
+    /* Prepare the Write action and send */
+    write_action.addr = buffer_flash_addr;
+    write_action.size = buffer_loadsize_get();
+
+    crcKeyScannerCalculation = key_scanner_flasher_.sendWriteAction(write_action, buffer_data);
+
+    /* Clear the buffer */
+    buffer_clear();
+
+    /* Compare the CRC and return */
+    return ( crcBufferCalculation == crcKeyScannerCalculation ) ? true : false;
+}
+
+/**************************************************/
+/*                KBDIF processing                */
+/**************************************************/
 
 kbdapi_event_result_t Upgrade::kbdif_key_event_cb( void * p_instance, kbdapi_key_t * p_key )
 {

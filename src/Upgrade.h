@@ -21,6 +21,8 @@
 
 #include "kbd_if.h"
 
+#define UPG_BUFFER_SIZE     4096
+
 class Upgrade {
  public:
   result_t init();
@@ -46,6 +48,20 @@ class Upgrade {
   void resetSides() const;
   bool escApprove() const;
   bool serialDataRead( uint8_t * p_data, uint32_t data_len, uint32_t timeout_ms );
+
+ private:
+  uint8_t buffer_data[UPG_BUFFER_SIZE];
+  uint16_t buffer_pos = 0;
+  uint16_t buffer_tx_size_max = 256;
+  uint32_t buffer_flash_addr;
+
+  void buffer_tx_size_max_set( uint16_t tx_size_max );
+  uint16_t buffer_loadsize_get( void );
+  uint16_t buffer_freesize_get( void );
+  bool buffer_data_add( uint32_t ks_flash_addr, uint8_t * p_data, uint16_t data_len );
+  void buffer_clear( void );
+
+  bool buffer_send_write_action( void );
 
  private:
   static const kbdif_handlers_t kbdif_handlers;

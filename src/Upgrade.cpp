@@ -32,6 +32,7 @@
 
 #define ESC_APPROVE_TIMEOUT_MS              1000
 #define SERIAL_FW_PACKET_WAIT_TIMEOUT_MS    5000
+
 extern Watchdog_timer watchdog_timer;
 
     /*
@@ -367,7 +368,7 @@ kbdapi_event_result_t Upgrade::kbdif_command_event_process( const char * p_comma
       key_scanner_flasher_.setSideInfo(infoAction);
 
       /* Set the maximum transfer size */
-      buffer_tx_size_max_set( infoAction.maxTransmissionLength );
+      buffer_write_action_size_max_set( infoAction.maxTransmissionLength );
 
       Focus.send(true);
       return KBDAPI_EVENT_RESULT_CONSUMED;
@@ -394,51 +395,23 @@ kbdapi_event_result_t Upgrade::kbdif_command_event_process( const char * p_comma
     if (strcmp_P(p_command + 8 + 11, PSTR("sendWrite")) == 0) {
 
       if (!flashing) return KBDAPI_EVENT_RESULT_ERROR;
-      struct {
-        WriteAction write_action;
-        uint8_t data[256];
-        uint32_t crc32Transmission;
-      } packet{};
+      write_action_packet_t packet;
       watchdog_update();
 
-      if( serialDataRead( (uint8_t *)&packet, sizeof( packet ), SERIAL_FW_PACKET_WAIT_TIMEOUT_MS ) == false )
+      if( write_action_packet_read( &packet ) == false )
       {
           ::Focus.send(false);
           return KBDAPI_EVENT_RESULT_ERROR;
       }
-
-      auto info_action = key_scanner_flasher_.getInfoAction();
 
       uint32_t crc32InMemory = crc32(packet.data, packet.write_action.size);
-      if (packet.crc32Transmission != crc32InMemory) {
+      uint32_t crc32Transmission = write_action_packet_crc_get( &packet );
+      if (crc32Transmission != crc32InMemory) {
         ::Focus.send(false);
         return KBDAPI_EVENT_RESULT_ERROR;
       }
 
-      if (packet.write_action.addr % info_action.eraseAlignment == 0) {
-        EraseAction erase_action{packet.write_action.addr, info_action.eraseAlignment};
-        if (!key_scanner_flasher_.sendEraseAction(erase_action)) {
-          ::Focus.send(false);
-          return KBDAPI_EVENT_RESULT_ERROR;
-        }
-      }
-
-      /* Add data into the output buffer */
-      if( !buffer_data_add( packet.write_action.addr, packet.data, packet.write_action.size) )
-      {
-        ::Focus.send(false);
-        return KBDAPI_EVENT_RESULT_ERROR;
-      }
-
-      /* Check if the buffer has been filled */
-      if( buffer_freesize_get() != 0 )
-      {
-          /* Wait for more data to come */
-          ::Focus.send(true);
-          return KBDAPI_EVENT_RESULT_CONSUMED;
-      }
-
-      if( !buffer_send_write_action() )
+      if( !write_action_packet_process(&packet))
       {
           ::Focus.send(false);
           return KBDAPI_EVENT_RESULT_ERROR;
@@ -457,7 +430,7 @@ kbdapi_event_result_t Upgrade::kbdif_command_event_process( const char * p_comma
 
     if (strcmp_P(p_command + 8 + 11, PSTR("finish")) == 0) {
       /* Semd the remaining data in the buffer */
-      if( !buffer_send_write_action() )
+      if( !buffer_write_to_keyscanner() )
       {
         ::Focus.send(false);
         return KBDAPI_EVENT_RESULT_ERROR;
@@ -490,12 +463,104 @@ kbdapi_event_result_t Upgrade::kbdif_command_event_process( const char * p_comma
 }
 
 /**************************************************/
+/*             Write Action processing            */
+/**************************************************/
+
+bool Upgrade::write_action_packet_read( write_action_packet_t * p_packet )
+{
+    /* Read the Write Action */
+    if( Upgrade::serialDataRead( (uint8_t *)&p_packet->write_action, sizeof( p_packet->write_action ), SERIAL_FW_PACKET_WAIT_TIMEOUT_MS ) == false )
+    {
+        return false;
+    }
+
+    /* Check the incoming data size */
+    if( p_packet->write_action.size > sizeof(p_packet->data) )
+    {
+        return false;
+    }
+
+    /* Read the rest of the packet */
+    if( Upgrade::serialDataRead( p_packet->data,  p_packet->write_action.size + sizeof(p_packet->crc32_placeholder), SERIAL_FW_PACKET_WAIT_TIMEOUT_MS ) == false )
+    {
+        return false;
+    }
+
+    return true;
+}
+
+uint32_t Upgrade::write_action_packet_crc_get( write_action_packet_t * p_packet )
+{
+    return *(uint32_t *)&p_packet->data[ p_packet->write_action.size ];
+}
+
+bool Upgrade::write_action_packet_process( write_action_packet_t * p_packet )
+{
+    /* Check if we should free the previously buffered data first */
+    if( p_packet->write_action.size > buffer_freesize_get() ||                      /* The incoming data size is bigger than the available space in the buffer */
+        p_packet->write_action.addr != buffer_flash_addr + buffer_loadsize_get() )  /* The new write_action is not consistent with the previously buffered data */
+    {
+        /* Make space in the buffer by processing the previously buffered data into keyscanner and free it for
+         * the new incoming data */
+        if( !buffer_write_to_keyscanner() )
+        {
+            return false;
+        }
+    }
+
+    /* Add data into the output buffer */
+    if( !buffer_data_add( p_packet->write_action.addr, p_packet->data, p_packet->write_action.size) )
+    {
+        return false;
+    }
+
+    /* Check if the buffer has been filled */
+    if( buffer_freesize_get() != 0 )
+    {
+        /* Wait for more data to come */
+        return true;
+    }
+
+    if( !buffer_write_to_keyscanner() )
+    {
+        return false;
+    }
+
+    return true;
+}
+
+bool Upgrade::write_action_send( uint32_t flash_addr, uint8_t * p_data, uint32_t data_size )
+{
+    WriteAction write_action;
+    uint32_t crcDataCalculation;
+    uint32_t crcKeyScannerCalculation;
+
+    if( data_size == 0 )
+    {
+        /* Nothing to be sent */
+        return true;
+    }
+
+    /* Calculate the CRC of the data being sent */
+    crcDataCalculation = crc32( p_data, data_size );
+
+    /* Prepare the Write action and send */
+    write_action.addr = flash_addr;
+    write_action.size = data_size;
+
+    crcKeyScannerCalculation = key_scanner_flasher_.sendWriteAction(write_action, p_data);
+
+    /* Compare the CRC and return */
+    return ( crcDataCalculation == crcKeyScannerCalculation ) ? true : false;
+}
+
+/**************************************************/
 /*                Buffer processing               */
 /**************************************************/
 
-void Upgrade::buffer_tx_size_max_set( uint16_t tx_size_max )
+void Upgrade::buffer_write_action_size_max_set( uint16_t write_action_size_max )
 {
-    buffer_tx_size_max = ( tx_size_max <= sizeof(buffer_data) ) ? tx_size_max : sizeof(buffer_data);
+    buffer_write_action_size_max = ( write_action_size_max <= sizeof(buffer_data) ) ? write_action_size_max : sizeof(buffer_data);
 
     buffer_clear();
 }
@@ -507,7 +572,8 @@ uint16_t Upgrade::buffer_loadsize_get( void )
 
 uint16_t Upgrade::buffer_freesize_get( void )
 {
-    return buffer_tx_size_max - buffer_pos;
+    //return buffer_tx_size_max - buffer_pos;
+    return sizeof(buffer_data) - buffer_pos;
 }
 
 bool Upgrade::buffer_data_add( uint32_t flash_addr, uint8_t * p_data, uint16_t data_len )
@@ -533,16 +599,25 @@ bool Upgrade::buffer_data_add( uint32_t flash_addr, uint8_t * p_data, uint16_t d
     return true;
 }
 
-void Upgrade::buffer_clear( void )
+void Upgrade::buffer_data_consume( void )
 {
+    buffer_flash_addr += buffer_loadsize_get();
     buffer_pos = 0;
 }
 
-bool Upgrade::buffer_send_write_action( void )
+void Upgrade::buffer_clear( void )
 {
-    WriteAction write_action;
-    uint32_t crcBufferCalculation;
-    uint32_t crcKeyScannerCalculation;
+    buffer_flash_addr = 0;
+    buffer_pos = 0;
+}
+
+bool Upgrade::buffer_write_to_keyscanner( void )
+{
+    uint32_t flash_addr;
+    uint32_t data_pos;
+    uint32_t data_size_remaining;
+    uint32_t data_size;
+    InfoAction info_action;
 
     if( buffer_loadsize_get() == 0 )
     {
@@ -550,20 +625,45 @@ bool Upgrade::buffer_send_write_action( void )
         return true;
     }
 
-    /* Calculate the CRC of the data in the buffer */
-    crcBufferCalculation = crc32( buffer_data, buffer_loadsize_get() );
+    /* Initialize the process variables */
+    flash_addr = buffer_flash_addr;
+    data_pos = 0;
+    data_size_remaining = buffer_loadsize_get();
 
-    /* Prepare the Write action and send */
-    write_action.addr = buffer_flash_addr;
-    write_action.size = buffer_loadsize_get();
+    info_action = key_scanner_flasher_.getInfoAction();
 
-    crcKeyScannerCalculation = key_scanner_flasher_.sendWriteAction(write_action, buffer_data);
+    while( data_size_remaining != 0 )
+    {
+        /* Check if we are entering new erasable block */
+        if ( flash_addr % info_action.eraseAlignment == 0 )
+        {
+            /* Erase the block before we start writing into it */
+            EraseAction erase_action{ flash_addr, info_action.eraseAlignment };
+            if (!key_scanner_flasher_.sendEraseAction(erase_action))
+            {
+                return false;
+            }
+        }
+
+        /* Get the amount of data to be sent in this step */
+        data_size = ( buffer_write_action_size_max < data_size_remaining ) ? buffer_write_action_size_max : data_size_remaining;
+
+        /* Write data into the keyscanner */
+        if (!write_action_send( flash_addr, &buffer_data[data_pos], data_size))
+        {
+            return false;
+        }
+
+        /* Adjust the process variables */
+        flash_addr += data_size;
+        data_pos += data_size;
+        data_size_remaining -= data_size;
+    }
 
     /* Clear the buffer */
-    buffer_clear();
+    buffer_data_consume();
 
-    /* Compare the CRC and return */
-    return ( crcBufferCalculation == crcKeyScannerCalculation ) ? true : false;
+    return true;
 }
 
 /**************************************************/

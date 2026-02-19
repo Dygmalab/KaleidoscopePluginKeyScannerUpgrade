@@ -204,10 +204,11 @@ kbdapi_event_result_t Upgrade::kbdif_command_event_process( const char * p_comma
                              "upgrade.keyscanner.begin\n"         //Choose the side (0 left 1 right)
                              "upgrade.keyscanner.isReady\n"       //Returns if the upgrade can begin successfully
                              "upgrade.keyscanner.getInfo\n"       //Version, and CRC, and is connected and start address, program is OK
+                             "upgrade.keyscanner.getWriteSize\n"  //Get the maximum write action data block size
                              "upgrade.keyscanner.sendWrite\n"     //Write //{Address size DATA crc} Check if we are going to support --? true false
                              "upgrade.keyscanner.validate\n"      //Check validity
                              "upgrade.keyscanner.finish\n"        //Finish bootloader
-                             "upgrade.keyscanner.sendStart")))    //Start main application and check validy //true false
+                             "upgrade.keyscanner.sendStart")))    //Start main application and check validity //true false
 
       return KBDAPI_EVENT_RESULT_IGNORED;
     //TODO set numbers ot PSTR
@@ -389,6 +390,12 @@ kbdapi_event_result_t Upgrade::kbdif_command_event_process( const char * p_comma
       Focus.send(info_action.flashStart);
       Focus.send(seal.programVersion);
       Focus.send(seal.programCrc);
+      Focus.send(true);
+    }
+
+    if (strcmp_P(p_command + 8 + 11, PSTR("getWriteSize")) == 0) {
+      if (!flashing) return KBDAPI_EVENT_RESULT_ERROR;
+      Focus.send(UPG_WRITE_ACTION_DATA_SIZE_MAX);
       Focus.send(true);
     }
 

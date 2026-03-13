@@ -1,5 +1,5 @@
 /* -*- mode: c++ -*-
- * kaleidoscope::plugin::KeyScannerFlasher
+ * Upgrade_bldr - Flashing KS Bootloader
  * Copyright (C) 2020  Dygma Lab S.L.
  *
  * This program is free software: you can redistribute it and/or modify it under
@@ -30,6 +30,8 @@
 #include "Communications.h"
 #include "Watchdog_timer.h"
 
+#include "kbd_if_manager.h"
+
 #define ESC_APPROVE_TIMEOUT_MS              1000
 #define SERIAL_FW_PACKET_WAIT_TIMEOUT_MS    5000
 #define CONNECTION_TIMEOUT_MS               1500
@@ -37,70 +39,65 @@ extern Watchdog_timer watchdog_timer;
 
 uint64_t conn_timeout_timer = 0;
 
-
-namespace kaleidoscope
+bool Upgrade::setup_right_connection()
 {
-namespace plugin {
-
-    bool Upgrade::setup_right_connection()
+    conn_timeout_timer = millis();
+    while (!right.connected)
     {
-        conn_timeout_timer = millis();
-        while (!right.connected)
-        {
-            Runtime.device().side.prepareForFlash();
+        kaleidoscope::Runtime.device().side.prepareForFlash();
 
-            if (!right.connected) {
-                for (uint8_t i = 0; i < 3; i++) {
-                    key_scanner_flasher_.setSide(KeyScannerFlasher::RIGHT);
-                    right.connected = key_scanner_flasher_.sendBegin();
-                }
-            }
-
-            if (!right.connected)
-            {
-                Runtime.device().side.reset_right_side();
-            }
-
-            if (millis() - conn_timeout_timer > CONNECTION_TIMEOUT_MS &&
-                !right.connected)
-            {
-                return false;
+        if (!right.connected) {
+            for (uint8_t i = 0; i < 3; i++) {
+                key_scanner_flasher_.setSide(KeyScannerFlasher::RIGHT);
+                right.connected = key_scanner_flasher_.sendBegin();
             }
         }
 
-        return true;
-
-    }
-
-    bool Upgrade::setup_left_connection()
-    {
-        conn_timeout_timer = millis();
-        while (!left.connected)
+        if (!right.connected)
         {
-            Runtime.device().side.prepareForFlash();
-            if(!left.connected)
-            {
-                for (uint8_t i = 0 ; i <3; i++)
-                {
-                    key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
-                    left.connected = key_scanner_flasher_.sendBegin();
-                }
-            }
-
-            if (!left.connected)
-            {
-                Runtime.device().side.reset_left_side();
-            }
-
-            if (millis() - conn_timeout_timer > CONNECTION_TIMEOUT_MS && !left.connected)
-            {
-                return false;
-            }
-
+            kaleidoscope::Runtime.device().side.reset_right_side();
         }
 
-        return true;
+        if (millis() - conn_timeout_timer > CONNECTION_TIMEOUT_MS &&
+            !right.connected)
+        {
+            return false;
+        }
     }
+
+    return true;
+
+}
+
+bool Upgrade::setup_left_connection()
+{
+    conn_timeout_timer = millis();
+    while (!left.connected)
+    {
+        kaleidoscope::Runtime.device().side.prepareForFlash();
+        if(!left.connected)
+        {
+            for (uint8_t i = 0 ; i <3; i++)
+            {
+                key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
+                left.connected = key_scanner_flasher_.sendBegin();
+            }
+        }
+
+        if (!left.connected)
+        {
+            kaleidoscope::Runtime.device().side.reset_left_side();
+        }
+
+        if (millis() - conn_timeout_timer > CONNECTION_TIMEOUT_MS && !left.connected)
+        {
+            return false;
+        }
+
+    }
+
+    return true;
+}
 
 
     /*
@@ -117,293 +114,23 @@ namespace plugin {
      * upgrade.end
      */
 
-EventHandlerResult Upgrade::onFocusEvent(const char *command)
+result_t Upgrade::init()
 {
-  if (::Focus.handleHelp(command,
-                         PSTR(
-                           "upgrade.start\n"
-                           "upgrade.neuron\n"
-                           "upgrade.end\n"
-                           "upgrade.keyscanner.isConnected\n"   //Check if is connected (zero left 1 right)
-                           "upgrade.keyscanner.isBootloader\n"  //Check if in bootloader mode (zero left 1 right)
-                           "upgrade.keyscanner.begin\n"         //Choose the side (zero left 1 right)
-                           "upgrade.keyscanner.isReady\n"       //Returns if the upgrade can begin successfully
-                           "upgrade.keyscanner.getInfo\n"       //Version, and CRC, and is connected and start address, program is OK
-                           "upgrade.keyscanner.sendWrite\n"     //Write //{Address size DATA crc} Check if we are going to support --? true false
-                           "upgrade.keyscanner.validate\n"      //Check validity
-                           "upgrade.keyscanner.finish\n"        //Finish bootloader
-                           "upgrade.keyscanner.sendStart")))    //Start the main application and check valid //true false
+    result_t result = RESULT_ERR;
 
-    return EventHandlerResult::OK;
-  //TODO set numbers ot PSTR
+    result = kbdif_initialize();
+    EXIT_IF_ERR( result, "kbdif_initialize failed" );
 
-  if (strncmp_P(command, PSTR("upgrade."), 8) != 0)
-    return EventHandlerResult::OK;
+    key_scanner_flasher_.setLeftBootAddress(kaleidoscope::Runtime.device().side.left_boot_address);
+    key_scanner_flasher_.setRightBootAddress(kaleidoscope::Runtime.device().side.right_boot_address);
 
-  if (strcmp_P(command + 8, PSTR("start")) == 0) {
-    InfoAction infoLeft{};
-    serial_pre_activation = true;
-
-    Runtime.hid().keyboard().releaseAllKeys();
-    Runtime.hid().keyboard().sendReport();
-
-    resetSides();
-
-    flashing = false;
-
-    right.connected = false;
-    left.connected = false;
-
-    left.validProgram = false;
-    right.validProgram = false;
-
-    setup_right_connection();
-
-    setup_left_connection();
-
-    if (right.connected)
-    {
-      key_scanner_flasher_.setSide(KeyScannerFlasher::RIGHT);
-      right.validProgram = key_scanner_flasher_.sendValidateProgram();
-    }
-
-    if (left.connected)
-    {
-      key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
-      left.validProgram = key_scanner_flasher_.sendValidateProgram();
-
-      key_scanner_flasher_.getInfoFlasherKS(infoLeft);
-
-      //Check if the ESC key can be used. If not, left side program is assumed as invalid.
-      left.validProgram = false;
-
-    }
-
-    //If the left keyboard is has not a valid program then we can continue
-    if ( !left.validProgram )
-    {
-      flashing = true;
-    }
-
-    if(left.validProgram && infoLeft.programVersion == 0x00)
-    {
-      flashing = true;
-    }
-
-    return EventHandlerResult::EVENT_CONSUMED;
-  }
-
-  if (strcmp_P(command + 8, PSTR("neuron")) == 0) {
-    if (!flashing) return EventHandlerResult::ERROR;
-    Runtime.rebootBootloader();
-  }
-
-  if (strcmp_P(command + 8, PSTR("isReady")) == 0) {
-    ::Focus.send(flashing);
-  }
-
-  if (strcmp_P(command + 8, PSTR("end")) == 0) {
-/*    serial_pre_activation = false;
-    activated             = false;
-    flashing              = false;
-    pressed_time          = 0;
-
-    Communications.get_keyscanner_configuration(Devices::KEYSCANNER_DEFY_LEFT);
-    Communications.get_keyscanner_configuration(Devices::KEYSCANNER_DEFY_RIGHT);*/
-    resetSides();
-  }
-
-  if (strncmp_P(command + 8, PSTR("keyscanner."), 11) != 0)
-    return EventHandlerResult::OK;
-
-  if (strcmp_P(command + 8 + 11, PSTR("isConnected")) == 0) {
-    if (::Focus.isEOL()) return EventHandlerResult::EVENT_CONSUMED;
-
-    uint8_t side;
-    ::Focus.read(side);
-    if (side != KeyScannerFlasher::Side::RIGHT && side != KeyScannerFlasher::Side::LEFT) {
-      return EventHandlerResult::EVENT_CONSUMED;
-    }
-
-    if (side == KeyScannerFlasher::Side::RIGHT) {
-      Focus.send(right.connected);
-    }
-
-    if (side == KeyScannerFlasher::Side::LEFT) {
-      Focus.send(left.connected);
-    }
-
-    return EventHandlerResult::EVENT_CONSUMED;
-  }
-
-  if (strcmp_P(command + 8 + 11, PSTR("isBootloader")) == 0) {
-    if (::Focus.isEOL()) return EventHandlerResult::EVENT_CONSUMED;
-    uint8_t side;
-    ::Focus.read(side);
-
-    if (side != KeyScannerFlasher::Side::RIGHT && side != KeyScannerFlasher::Side::LEFT) {
-      return EventHandlerResult::EVENT_CONSUMED;
-    }
-
-    if (side == KeyScannerFlasher::Side::RIGHT) {
-      Focus.send(!right.validProgram);
-    }
-
-    if (side == KeyScannerFlasher::Side::LEFT) {
-      Focus.send(!left.validProgram);
-    }
-
-    return EventHandlerResult::EVENT_CONSUMED;
-  }
-
-  if (strcmp_P(command + 8 + 11, PSTR("begin")) == 0)
-  {
-    if (!flashing) return EventHandlerResult::ERROR;
-
-    if (::Focus.isEOL()) return EventHandlerResult::EVENT_CONSUMED;
-
-    uint8_t side;
-    ::Focus.read(side);
-    if (side != KeyScannerFlasher::Side::RIGHT && side != KeyScannerFlasher::Side::LEFT) {
-      return EventHandlerResult::EVENT_CONSUMED;
-    }
-
-    key_scanner_flasher_.setSide((KeyScannerFlasher::Side)side);
-
-    bool active_side = false;
-    uint8_t i=0;
-
-    if(side == KeyScannerFlasher::Side::RIGHT)
-    {
-        if (setup_right_connection() == false)
-        {
-            Focus.send(false);
-            return EventHandlerResult::ERROR;
-        }
-        active_side = true;
-    }
-
-    if ( side == KeyScannerFlasher::Side::LEFT )
-    {
-        if (setup_left_connection() == false)
-        {
-            Focus.send(false);
-            return EventHandlerResult::ERROR;
-        }
-        active_side = true;
-    }
-
-    if (active_side)
-    {
-      Focus.send(true);
-      return EventHandlerResult::EVENT_CONSUMED;
-    }
-
-    Focus.send(false);
-    return EventHandlerResult::ERROR;
-  }
-
-  if (strcmp_P(command + 8 + 11, PSTR("getInfo")) == 0) {
-    if (!flashing) return EventHandlerResult::ERROR;
-    InfoAction info{};
-    if (!key_scanner_flasher_.getInfoFlasherKS(info)) {
-      Focus.send(false);
-      return EventHandlerResult::ERROR;
-    }
-    key_scanner_flasher_.setSideInfo(info);
-
-    ReadAction read{info.validationSpaceStart, sizeof(Seal)};
-    Seal seal{};
-    key_scanner_flasher_.sendReadAction(read);
-    if (key_scanner_flasher_.readData((uint8_t *)&seal, sizeof(Seal)) != sizeof(Seal)) {
-      Focus.send(false);
-      return EventHandlerResult::ERROR;
-    }
-    Focus.send(info.hardwareVersion);
-    Focus.send(info.flashStart);
-    Focus.send(seal.programVersion);
-    Focus.send(seal.programCrc);
-    Focus.send(true);
-  }
-
-  if (strcmp_P(command + 8 + 11, PSTR("sendWrite")) == 0) {
-
-    if (!flashing) return EventHandlerResult::ERROR;
-    struct {
-      WriteAction write_action;
-      uint8_t data[256];
-      uint32_t crc32Transmission;
-    } packet{};
-    watchdog_update();
-
-    if( serialDataRead( (uint8_t *)&packet, sizeof( packet ), SERIAL_FW_PACKET_WAIT_TIMEOUT_MS ) == false )
-    {
-        ::Focus.send(false);
-        return EventHandlerResult::ERROR;
-    }
-
-    auto info_action = key_scanner_flasher_.getInfoAction();
-
-    uint32_t crc32InMemory = crc32(packet.data, packet.write_action.size);
-    if (packet.crc32Transmission != crc32InMemory) {
-      ::Focus.send(false);
-      return EventHandlerResult::ERROR;
-    }
-
-    if (packet.write_action.addr % info_action.eraseAlignment == 0) {
-      EraseAction erase_action{packet.write_action.addr, info_action.eraseAlignment};
-      if (!key_scanner_flasher_.sendEraseAction(erase_action)) {
-        ::Focus.send(false);
-        return EventHandlerResult::ERROR;
-      }
-    }
-
-    uint32_t crcKeyScannerCalculation = key_scanner_flasher_.sendWriteAction(packet.write_action, packet.data);
-    if (crcKeyScannerCalculation != packet.crc32Transmission) {
-      ::Focus.send(false);
-      return EventHandlerResult::ERROR;
-    }
-    ::Focus.send(true);
-  }
-
-  if (strcmp_P(command + 8 + 11, PSTR("validate")) == 0) {
-    if (!key_scanner_flasher_.sendValidateProgram()) {
-      Focus.send(false);
-      return EventHandlerResult::ERROR;
-    }
-    Focus.send(true);
-  }
-
-  if (strcmp_P(command + 8 + 11, PSTR("finish")) == 0) {
-    if (!key_scanner_flasher_.sendFinish()) {
-      Focus.send(false);
-      return EventHandlerResult::ERROR;
-    }
-    Focus.send(true);
-   //Runtime.device().side.reset_sides();
-  }
-
-  if (strcmp_P(command + 8 + 11, PSTR("sendStart")) == 0) {
-    auto info_action = key_scanner_flasher_.getInfoAction();
-    if (!key_scanner_flasher_.sendValidateProgram()) {
-      Focus.send(false);
-      return EventHandlerResult::ERROR;
-    }
-
-    if (!key_scanner_flasher_.sendJump(info_action.programSpaceStart)) {
-      Focus.send(false);
-      return EventHandlerResult::ERROR;
-    }
-
-    Focus.send(true);
-  }
-
-  return EventHandlerResult::EVENT_CONSUMED;
+_EXIT:
+    return result;
 }
 
 void Upgrade::resetSides() const {
-  Runtime.device().side.prepareForFlash();
-  Runtime.device().side.reset_sides();
+    kaleidoscope::Runtime.device().side.prepareForFlash();
+    kaleidoscope::Runtime.device().side.reset_sides();
 }
 
 bool Upgrade::escApprove() const {
@@ -463,63 +190,377 @@ bool Upgrade::serialDataRead( uint8_t * p_data, uint32_t data_len, uint32_t time
     return false;
 }
 
-EventHandlerResult Upgrade::onSetup() {
-  key_scanner_flasher_.setLeftBootAddress(Runtime.device().side.left_boot_address);
-  key_scanner_flasher_.setRightBootAddress(Runtime.device().side.right_boot_address);
-
-  return EventHandlerResult::OK;
-}
-
-EventHandlerResult Upgrade::onKeyswitchEvent(Key &mapped_Key, KeyAddr key_addr, uint8_t key_state) {
-  if (!serial_pre_activation)
-    return EventHandlerResult::OK;
-
-  if (!key_addr.isValid() || (key_state & INJECTED) != 0) {
-    return EventHandlerResult::OK;
-  }
-
-  if (key_addr.col() == 0 && key_addr.row() == 0 && keyToggledOn(key_state)) {
-    activated    = true;
-    pressed_time = Runtime.millisAtCycleStart();
-    return EventHandlerResult::EVENT_CONSUMED;
-  }
-
-  return EventHandlerResult::OK;
-}
-
-EventHandlerResult Upgrade::beforeReportingState()
+void Upgrade::run()
 {
-  if (flashing)
-  {
-      return EventHandlerResult::OK;
-  }
+    if (flashing)
+    {
+        return;
+    }
 
-  if (!serial_pre_activation)
-  {
-      return EventHandlerResult::OK;
-  }
+    if (!serial_pre_activation)
+    {
+        return;
+    }
 
-  if (!activated)
-  {
-      return EventHandlerResult::OK;
-  }
+    if (!activated)
+    {
+        return;
+    }
 
-  if (Runtime.hasTimeExpired(pressed_time, press_time))
-  {
-    flashing = true;
-    activated = false;
+    if (kaleidoscope::Runtime.hasTimeExpired(pressed_time, press_time))
+    {
+      flashing = true;
+      activated = false;
 
-    return EventHandlerResult::OK;
-  }
+      return;
+    }
 
-  return EventHandlerResult::OK;
+    return;
 }
 
-}  // namespace plugin
-}  // namespace kaleidoscope
+result_t Upgrade::kbdif_initialize()
+{
+    result_t result = RESULT_ERR;
+    kbdif_conf_t config;
 
+    /* Prepare the kbdif configuration */
+    config.p_instance = this;
+    config.handlers = &kbdif_handlers;
 
-kaleidoscope::plugin::Upgrade Upgrade;
+    /* Initialize the kbdif */
+    result = kbdif_init( &p_kbdif, &config );
+    EXIT_IF_ERR( result, "kbdif_init failed" );
 
+    /* Add the kbdif into the kbdif manager */
+    result = kbdifmgr_add( p_kbdif );
+    EXIT_IF_ERR( result, "kbdifmgr_add failed" );
+
+_EXIT:
+    return result;
+}
+
+kbdapi_event_result_t Upgrade::kbdif_key_event_process( kbdapi_key_t * p_key )
+{
+    if (!serial_pre_activation)
+      return KBDAPI_EVENT_RESULT_IGNORED;
+
+    if (!p_key->coord.is_valid || p_key->injected) {
+      return KBDAPI_EVENT_RESULT_IGNORED;
+    }
+
+    if (p_key->coord.col == 0 && p_key->coord.row == 0 && p_key->toggled_on) {
+      activated    = true;
+      pressed_time = kaleidoscope::Runtime.millisAtCycleStart();
+      return KBDAPI_EVENT_RESULT_CONSUMED;
+    }
+
+    return KBDAPI_EVENT_RESULT_IGNORED;
+}
+
+kbdapi_event_result_t Upgrade::kbdif_command_event_process( const char * p_command )
+{
+    if (::Focus.handleHelp(p_command,
+                           PSTR(
+                             "upgrade.start\n"
+                             "upgrade.neuron\n"
+                             "upgrade.end\n"
+                             "upgrade.keyscanner.isConnected\n"   //Check if is connected (zero left 1 right)
+                             "upgrade.keyscanner.isBootloader\n"  //Check if in bootloader mode (zero left 1 right)
+                             "upgrade.keyscanner.begin\n"         //Choose the side (zero left 1 right)
+                             "upgrade.keyscanner.isReady\n"       //Returns if the upgrade can begin successfully
+                             "upgrade.keyscanner.getInfo\n"       //Version, and CRC, and is connected and start address, program is OK
+                             "upgrade.keyscanner.sendWrite\n"     //Write //{Address size DATA crc} Check if we are going to support --? true false
+                             "upgrade.keyscanner.validate\n"      //Check validity
+                             "upgrade.keyscanner.finish\n"        //Finish bootloader
+                             "upgrade.keyscanner.sendStart")))    //Start the main application and check valid //true false
+
+      return KBDAPI_EVENT_RESULT_IGNORED;
+    //TODO set numbers ot PSTR
+
+    if (strncmp_P(p_command, PSTR("upgrade."), 8) != 0)
+      return KBDAPI_EVENT_RESULT_IGNORED;
+
+    if (strcmp_P(p_command + 8, PSTR("start")) == 0) {
+      InfoAction infoLeft{};
+      serial_pre_activation = true;
+
+      kaleidoscope::Runtime.hid().keyboard().releaseAllKeys();
+      kaleidoscope::Runtime.hid().keyboard().sendReport();
+
+      resetSides();
+
+      flashing = false;
+
+      right.connected = false;
+      left.connected = false;
+
+      left.validProgram = false;
+      right.validProgram = false;
+
+      setup_right_connection();
+
+      setup_left_connection();
+
+      if (right.connected)
+      {
+        key_scanner_flasher_.setSide(KeyScannerFlasher::RIGHT);
+        right.validProgram = key_scanner_flasher_.sendValidateProgram();
+      }
+
+      if (left.connected)
+      {
+        key_scanner_flasher_.setSide(KeyScannerFlasher::LEFT);
+        left.validProgram = key_scanner_flasher_.sendValidateProgram();
+
+        key_scanner_flasher_.getInfoFlasherKS(infoLeft);
+
+        //Check if the ESC key can be used. If not, left side program is assumed as invalid.
+        left.validProgram = false;
+
+      }
+
+      //If the left keyboard is has not a valid program then we can continue
+      if ( !left.validProgram )
+      {
+        flashing = true;
+      }
+
+      if(left.validProgram && infoLeft.programVersion == 0x00)
+      {
+        flashing = true;
+      }
+
+      return KBDAPI_EVENT_RESULT_CONSUMED;
+    }
+
+    if (strcmp_P(p_command + 8, PSTR("neuron")) == 0) {
+      if (!flashing) return KBDAPI_EVENT_RESULT_ERROR;
+      kaleidoscope::Runtime.rebootBootloader();
+    }
+
+    if (strcmp_P(p_command + 8, PSTR("isReady")) == 0) {
+      ::Focus.send(flashing);
+    }
+
+    if (strcmp_P(p_command + 8, PSTR("end")) == 0) {
+  /*    serial_pre_activation = false;
+      activated             = false;
+      flashing              = false;
+      pressed_time          = 0;
+
+      Communications.get_keyscanner_configuration(Devices::KEYSCANNER_DEFY_LEFT);
+      Communications.get_keyscanner_configuration(Devices::KEYSCANNER_DEFY_RIGHT);*/
+      resetSides();
+    }
+
+    if (strncmp_P(p_command + 8, PSTR("keyscanner."), 11) != 0)
+      return KBDAPI_EVENT_RESULT_IGNORED;
+
+    if (strcmp_P(p_command + 8 + 11, PSTR("isConnected")) == 0) {
+      if (::Focus.isEOL()) return KBDAPI_EVENT_RESULT_CONSUMED;
+
+      uint8_t side;
+      ::Focus.read(side);
+      if (side != KeyScannerFlasher::Side::RIGHT && side != KeyScannerFlasher::Side::LEFT) {
+        return KBDAPI_EVENT_RESULT_CONSUMED;
+      }
+
+      if (side == KeyScannerFlasher::Side::RIGHT) {
+        Focus.send(right.connected);
+      }
+
+      if (side == KeyScannerFlasher::Side::LEFT) {
+        Focus.send(left.connected);
+      }
+
+      return KBDAPI_EVENT_RESULT_CONSUMED;
+    }
+
+    if (strcmp_P(p_command + 8 + 11, PSTR("isBootloader")) == 0) {
+      if (::Focus.isEOL()) return KBDAPI_EVENT_RESULT_CONSUMED;
+      uint8_t side;
+      ::Focus.read(side);
+
+      if (side != KeyScannerFlasher::Side::RIGHT && side != KeyScannerFlasher::Side::LEFT) {
+        return KBDAPI_EVENT_RESULT_CONSUMED;
+      }
+
+      if (side == KeyScannerFlasher::Side::RIGHT) {
+        Focus.send(!right.validProgram);
+      }
+
+      if (side == KeyScannerFlasher::Side::LEFT) {
+        Focus.send(!left.validProgram);
+      }
+
+      return KBDAPI_EVENT_RESULT_CONSUMED;
+    }
+
+    if (strcmp_P(p_command + 8 + 11, PSTR("begin")) == 0)
+    {
+      if (!flashing) return KBDAPI_EVENT_RESULT_ERROR;
+
+      if (::Focus.isEOL()) return KBDAPI_EVENT_RESULT_CONSUMED;
+
+      uint8_t side;
+      ::Focus.read(side);
+      if (side != KeyScannerFlasher::Side::RIGHT && side != KeyScannerFlasher::Side::LEFT) {
+        return KBDAPI_EVENT_RESULT_CONSUMED;
+      }
+
+      key_scanner_flasher_.setSide((KeyScannerFlasher::Side)side);
+
+      bool active_side = false;
+      uint8_t i=0;
+
+      if(side == KeyScannerFlasher::Side::RIGHT)
+      {
+          if (setup_right_connection() == false)
+          {
+              Focus.send(false);
+              return KBDAPI_EVENT_RESULT_ERROR;
+          }
+          active_side = true;
+      }
+
+      if ( side == KeyScannerFlasher::Side::LEFT )
+      {
+          if (setup_left_connection() == false)
+          {
+              Focus.send(false);
+              return KBDAPI_EVENT_RESULT_ERROR;
+          }
+          active_side = true;
+      }
+
+      if (active_side)
+      {
+        Focus.send(true);
+        return KBDAPI_EVENT_RESULT_CONSUMED;
+      }
+
+      Focus.send(false);
+      return KBDAPI_EVENT_RESULT_ERROR;
+    }
+
+    if (strcmp_P(p_command + 8 + 11, PSTR("getInfo")) == 0) {
+      if (!flashing) return KBDAPI_EVENT_RESULT_ERROR;
+      InfoAction info{};
+      if (!key_scanner_flasher_.getInfoFlasherKS(info)) {
+        Focus.send(false);
+        return KBDAPI_EVENT_RESULT_ERROR;
+      }
+      key_scanner_flasher_.setSideInfo(info);
+
+      ReadAction read{info.validationSpaceStart, sizeof(Seal)};
+      Seal seal{};
+      key_scanner_flasher_.sendReadAction(read);
+      if (key_scanner_flasher_.readData((uint8_t *)&seal, sizeof(Seal)) != sizeof(Seal)) {
+        Focus.send(false);
+        return KBDAPI_EVENT_RESULT_ERROR;
+      }
+      Focus.send(info.hardwareVersion);
+      Focus.send(info.flashStart);
+      Focus.send(seal.programVersion);
+      Focus.send(seal.programCrc);
+      Focus.send(true);
+    }
+
+    if (strcmp_P(p_command + 8 + 11, PSTR("sendWrite")) == 0) {
+
+      if (!flashing) return KBDAPI_EVENT_RESULT_ERROR;
+      struct {
+        WriteAction write_action;
+        uint8_t data[256];
+        uint32_t crc32Transmission;
+      } packet{};
+      watchdog_update();
+
+      if( serialDataRead( (uint8_t *)&packet, sizeof( packet ), SERIAL_FW_PACKET_WAIT_TIMEOUT_MS ) == false )
+      {
+          ::Focus.send(false);
+          return KBDAPI_EVENT_RESULT_ERROR;
+      }
+
+      auto info_action = key_scanner_flasher_.getInfoAction();
+
+      uint32_t crc32InMemory = crc32(packet.data, packet.write_action.size);
+      if (packet.crc32Transmission != crc32InMemory) {
+        ::Focus.send(false);
+        return KBDAPI_EVENT_RESULT_ERROR;
+      }
+
+      if (packet.write_action.addr % info_action.eraseAlignment == 0) {
+        EraseAction erase_action{packet.write_action.addr, info_action.eraseAlignment};
+        if (!key_scanner_flasher_.sendEraseAction(erase_action)) {
+          ::Focus.send(false);
+          return KBDAPI_EVENT_RESULT_ERROR;
+        }
+      }
+
+      uint32_t crcKeyScannerCalculation = key_scanner_flasher_.sendWriteAction(packet.write_action, packet.data);
+      if (crcKeyScannerCalculation != packet.crc32Transmission) {
+        ::Focus.send(false);
+        return KBDAPI_EVENT_RESULT_ERROR;
+      }
+      ::Focus.send(true);
+    }
+
+    if (strcmp_P(p_command + 8 + 11, PSTR("validate")) == 0) {
+      if (!key_scanner_flasher_.sendValidateProgram()) {
+        Focus.send(false);
+        return KBDAPI_EVENT_RESULT_ERROR;
+      }
+      Focus.send(true);
+    }
+
+    if (strcmp_P(p_command + 8 + 11, PSTR("finish")) == 0) {
+      if (!key_scanner_flasher_.sendFinish()) {
+        Focus.send(false);
+        return KBDAPI_EVENT_RESULT_ERROR;
+      }
+      Focus.send(true);
+     //Runtime.device().side.reset_sides();
+    }
+
+    if (strcmp_P(p_command + 8 + 11, PSTR("sendStart")) == 0) {
+      auto info_action = key_scanner_flasher_.getInfoAction();
+      if (!key_scanner_flasher_.sendValidateProgram()) {
+        Focus.send(false);
+        return KBDAPI_EVENT_RESULT_ERROR;
+      }
+
+      if (!key_scanner_flasher_.sendJump(info_action.programSpaceStart)) {
+        Focus.send(false);
+        return KBDAPI_EVENT_RESULT_ERROR;
+      }
+
+      Focus.send(true);
+    }
+
+    return KBDAPI_EVENT_RESULT_CONSUMED;
+}
+
+kbdapi_event_result_t Upgrade::kbdif_key_event_cb( void * p_instance, kbdapi_key_t * p_key )
+{
+    Upgrade * p_Upgrade = ( Upgrade *)p_instance;
+
+    return p_Upgrade->kbdif_key_event_process( p_key );
+}
+
+kbdapi_event_result_t Upgrade::kbdif_command_event_cb( void * p_instance, const char * p_command )
+{
+    Upgrade * p_Upgrade = ( Upgrade *)p_instance;
+
+    return p_Upgrade->kbdif_command_event_process( p_command );
+}
+
+const kbdif_handlers_t Upgrade::kbdif_handlers =
+{
+    .key_event_cb = kbdif_key_event_cb,
+    .command_event_cb = kbdif_command_event_cb,
+};
+
+class Upgrade Upgrade;
 
 #endif

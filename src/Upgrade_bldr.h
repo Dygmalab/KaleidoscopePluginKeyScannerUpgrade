@@ -1,5 +1,5 @@
 /* -*- mode: c++ -*-
- * kaleidoscope::plugin::KeyScannerFlasher
+ * Upgrade_bldr - Flashing KS Bootloader
  * Copyright (C) 2020  Dygma Lab S.L.
  *
  * This program is free software: you can redistribute it and/or modify it under
@@ -17,21 +17,20 @@
 #ifndef TEST_JIG
 #pragma once
 
-#include <Kaleidoscope.h>
 #include "KeyScannerFlasher.h"
 
+#include "kbd_if.h"
 
-namespace kaleidoscope {
-namespace plugin {
-class Upgrade : public Plugin {
+class Upgrade {
  public:
-  // Kaleidoscope Focus library functions
-  EventHandlerResult onFocusEvent(const char *command);
-  // On Setup handler function
-  EventHandlerResult onSetup();
+  result_t init();
+  void run();
 
-  EventHandlerResult beforeReportingState();
-  EventHandlerResult onKeyswitchEvent(Key &mapped_Key, KeyAddr key_addr, uint8_t key_state);
+ private:
+  kbdif_t * p_kbdif = NULL;
+  result_t kbdif_initialize(void);
+  kbdapi_event_result_t kbdif_key_event_process( kbdapi_key_t * p_key );
+  kbdapi_event_result_t kbdif_command_event_process( const char * p_command );
 
  private:
   KeyScannerFlasher key_scanner_flasher_{};
@@ -49,10 +48,13 @@ class Upgrade : public Plugin {
   void resetSides() const;
   bool escApprove() const;
   bool serialDataRead( uint8_t * p_data, uint32_t data_len, uint32_t timeout_ms );
+
+ private:
+  static const kbdif_handlers_t kbdif_handlers;
+
+  static kbdapi_event_result_t kbdif_key_event_cb( void * p_instance, kbdapi_key_t * p_key );
+  static kbdapi_event_result_t kbdif_command_event_cb( void * p_instance, const char * p_command );
 };
 
-}  // namespace plugin
-}  // namespace kaleidoscope
-
-extern kaleidoscope::plugin::Upgrade Upgrade;
+extern class Upgrade Upgrade;
 #endif

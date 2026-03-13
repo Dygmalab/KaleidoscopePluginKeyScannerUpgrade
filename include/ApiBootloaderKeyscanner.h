@@ -1,5 +1,5 @@
 /* -*- mode: c++ -*-
- * kaleidoscope::plugin::KeyScannerFlasher
+ * KeyScannerFlasher
  * Copyright (C) 2020  Dygma Lab S.L.
  *
  * This program is free software: you can redistribute it and/or modify it under
@@ -23,7 +23,7 @@
 enum Action {
   BEGIN            = 'B',
   INFO             = 'I',
-  SEAL             = 'S',
+//  SEAL             = 'S',
   WRITE            = 'W',
   READ             = 'R',
   ERASE            = 'E',

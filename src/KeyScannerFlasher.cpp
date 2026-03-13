@@ -1,5 +1,5 @@
 /* -*- mode: c++ -*-
- * kaleidoscope::plugin::KeyScannerFlasher
+ * KeyScannerFlasher
  * Copyright (C) 2020  Dygma Lab S.L.
  *
  * This program is free software: you can redistribute it and/or modify it under
@@ -110,7 +110,7 @@ bool KeyScannerFlasher::sendValidateProgram() {
 bool KeyScannerFlasher::sendBegin() {
   WIRE_.setTimeout(50);
   bool b = !sendCommand(address, Action::BEGIN);
-  WIRE_.setTimeout(300);
+  WIRE_.setTimeout(600);
   return b;
 }
 

@@ -18,6 +18,7 @@
 #pragma once
 
 #include "KeyScannerFlasher.h"
+#include "Time_counter.h"
 
 #include "kbd_if.h"
 
@@ -44,8 +45,8 @@ class Upgrade {
   } right, left;
   bool activated = false;
   bool flashing  = false;
-  uint16_t press_time{1};
-  uint16_t pressed_time{0};
+  uint16_t press_timeout{1};
+  dl_timer_t pressed_timer{0};
   bool serial_pre_activation = false;
   void resetSides() const;
   bool escApprove() const;

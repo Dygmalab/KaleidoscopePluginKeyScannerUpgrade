@@ -148,7 +148,7 @@ void Upgrade::run()
         return;
     }
 
-    if (kaleidoscope::Runtime.hasTimeExpired(pressed_time, press_time))
+    if ( timer_check( &pressed_timer ) )
     {
       flashing = true;
       activated = false;
@@ -191,7 +191,7 @@ kbdapi_event_result_t Upgrade::kbdif_key_event_process( kbdapi_key_t * p_key )
 
     if (p_key->coord.col == 0 && p_key->coord.row == 0 && p_key->toggled_on) {
       activated    = true;
-      pressed_time = kaleidoscope::Runtime.millisAtCycleStart();
+      timer_set_ms( &pressed_timer, press_timeout );
       return KBDAPI_EVENT_RESULT_CONSUMED;
     }
 

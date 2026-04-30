@@ -27,6 +27,7 @@
 
 #include "Communications.h"
 #include "Watchdog_timer.h"
+#include "Time_counter.h"
 
 #include "kbd_if_manager.h"
 
@@ -69,11 +70,13 @@ void Upgrade::resetSides() const {
 }
 
 bool Upgrade::escApprove() const {
+    dl_timer_t timer;
 
-    uint32_t process_start_timestamp = millis();
+    /* Set the timer */
+    timer_set_ms( &timer, ESC_APPROVE_TIMEOUT_MS );
 
     /* We are waiting for any valid packect from the Left side of the keyboard. If received, we can be pretty sure the ESC key will work */
-    while( ( millis() - process_start_timestamp ) < ESC_APPROVE_TIMEOUT_MS )
+    while( timer_check(&timer) == false )
     {
         Communications.run();
         watchdog_timer.reset();
@@ -92,7 +95,7 @@ bool Upgrade::serialDataRead( uint8_t * p_data, uint32_t data_len, uint32_t time
     size_t read_len = 0;
     size_t bytes_cnt;
 
-    uint32_t process_start_timestamp = millis();
+    dl_timer_t timer;
 
     if( data_len == 0 )
     {
@@ -100,7 +103,10 @@ bool Upgrade::serialDataRead( uint8_t * p_data, uint32_t data_len, uint32_t time
         return true;
     }
 
-    while( ( millis() - process_start_timestamp ) < timeout_ms )
+    /* Set the timer */
+    timer_set_ms( &timer, timeout_ms );
+
+    while( timer_check(&timer) == false )
     {
         watchdog_update();
 
@@ -142,7 +148,7 @@ void Upgrade::run()
         return;
     }
 
-    if (kaleidoscope::Runtime.hasTimeExpired(pressed_time, press_time))
+    if ( timer_check( &pressed_timer ) )
     {
       flashing = true;
       activated = false;
@@ -185,7 +191,7 @@ kbdapi_event_result_t Upgrade::kbdif_key_event_process( kbdapi_key_t * p_key )
 
     if (p_key->coord.col == 0 && p_key->coord.row == 0 && p_key->toggled_on) {
       activated    = true;
-      pressed_time = kaleidoscope::Runtime.millisAtCycleStart();
+      timer_set_ms( &pressed_timer, press_timeout );
       return KBDAPI_EVENT_RESULT_CONSUMED;
     }
 

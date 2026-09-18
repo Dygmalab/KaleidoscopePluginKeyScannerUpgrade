@@ -29,6 +29,7 @@
 #include "Watchdog_timer.h"
 #include "Time_counter.h"
 
+#include "Kbd_manager.h"
 #include "kbd_if_manager.h"
 
 #define ESC_APPROVE_TIMEOUT_MS              1000
@@ -57,16 +58,16 @@ result_t Upgrade::init()
     result = kbdif_initialize();
     EXIT_IF_ERR( result, "kbdif_initialize failed" );
 
-    key_scanner_flasher_.setLeftBootAddress(kaleidoscope::Runtime.device().side.left_boot_address);
-    key_scanner_flasher_.setRightBootAddress(kaleidoscope::Runtime.device().side.right_boot_address);
+    key_scanner_flasher_.setLeftBootAddress( kbdManager.boot_address_left_get() );
+    key_scanner_flasher_.setRightBootAddress( kbdManager.boot_address_right_get() );
 
 _EXIT:
     return result;
 }
 
 void Upgrade::resetSides() const {
-    kaleidoscope::Runtime.device().side.prepareForFlash();
-    kaleidoscope::Runtime.device().side.reset_sides();
+    kbdManager.prepareForFlash();
+    kbdManager.reset_sides();
 }
 
 bool Upgrade::escApprove() const {
@@ -454,7 +455,7 @@ kbdapi_event_result_t Upgrade::kbdif_command_event_process( const char * p_comma
       }
       Focus.send(true);
       delay(100);       /* Let keyscanner finish its processes */
-      kaleidoscope::Runtime.device().side.reset_sides();
+      kbdManager.reset_sides();
     }
 
     if (strcmp_P(p_command + 8 + 11, PSTR("sendStart")) == 0) {
